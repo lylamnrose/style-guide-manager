@@ -1162,7 +1162,7 @@ function ColorExplorer({ base, baseLabel, onAdd, onCopy }) {
           {harmonies.map(h => (
             <div key={h.id}>
               <div className="text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-1">{h.label}</div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5">
                 {h.colors.map((hex, i) => (
                   <SwatchPill
                     key={i}
