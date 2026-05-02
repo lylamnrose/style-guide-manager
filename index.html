@@ -954,7 +954,7 @@ function ColorSection({ colors, onAdd, onUpdate, onDelete, onReorder, onCopy }) 
         />
       )}
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+      <div className="gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
         {colors.map(c => (
           <ColorCard
             key={c.id}
@@ -1162,7 +1162,7 @@ function ColorExplorer({ base, baseLabel, onAdd, onCopy }) {
           {harmonies.map(h => (
             <div key={h.id}>
               <div className="text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-1">{h.label}</div>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: '6px' }}>
                 {h.colors.map((hex, i) => (
                   <SwatchPill
                     key={i}
