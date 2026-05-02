@@ -178,6 +178,21 @@ function approxToPx(value, unit) {
   return n;
 }
 
+// Practical size scales used by the Compare-Sizes ladder. Each ladder also splices in
+// the user's current size so it's always visible and highlighted.
+const SIZE_LADDER_BY_UNIT = {
+  px:  [11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96],
+  pt:  [9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72],
+  rem: [0.75, 0.875, 1, 1.125, 1.25, 1.5, 1.75, 2, 2.5, 3, 3.5, 4, 5, 6],
+  em:  [0.75, 0.875, 1, 1.125, 1.25, 1.5, 1.75, 2, 2.5, 3, 3.5, 4],
+};
+function sizeStep(unit) { return (unit === 'rem' || unit === 'em') ? 0.0625 : 1; }
+function roundSize(value) {
+  // Trim noise from float math while keeping rem/em precision when the user typed it.
+  const v = +Number(value).toFixed(4);
+  return Object.is(v, -0) ? 0 : v;
+}
+
 // Backfill old font records (added before style/sizeUnit existed).
 function normalizeFont(f) {
   return {
@@ -336,6 +351,90 @@ function contrastGrade(ratio) {
   return { label: 'Fail', tone: 'fail' };
 }
 
+// ---------- HSL helpers + scale & harmony generators ----------
+function hexToHsl(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  const [r, g, b] = rgb.map(v => v / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return [h * 360, s * 100, l * 100];
+}
+
+function hslToHex(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  const sN = Math.max(0, Math.min(100, s)) / 100;
+  const lN = Math.max(0, Math.min(100, l)) / 100;
+  const c = (1 - Math.abs(2 * lN - 1)) * sN;
+  const hp = h / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  let r1 = 0, g1 = 0, b1 = 0;
+  if (hp < 1)      [r1, g1, b1] = [c, x, 0];
+  else if (hp < 2) [r1, g1, b1] = [x, c, 0];
+  else if (hp < 3) [r1, g1, b1] = [0, c, x];
+  else if (hp < 4) [r1, g1, b1] = [0, x, c];
+  else if (hp < 5) [r1, g1, b1] = [x, 0, c];
+  else             [r1, g1, b1] = [c, 0, x];
+  const m = lN - c / 2;
+  return rgbToHex([(r1 + m) * 255, (g1 + m) * 255, (b1 + m) * 255]);
+}
+
+const SCALE_STEPS    = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+const SCALE_TARGET_L = [97, 93, 85, 73, 60, 50, 42, 33, 26, 19, 12];
+
+// Generate an 11-step shade & tint scale around the base color.
+// The user's actual hex is preserved at the step whose target lightness is closest.
+function generateScale(baseHex) {
+  const hsl = hexToHsl(baseHex);
+  if (!hsl) return [];
+  const [h, s, l] = hsl;
+  // Find which step the user's color most naturally sits at.
+  let baseIdx = 5;
+  for (let i = 0; i < SCALE_TARGET_L.length; i++) {
+    if (Math.abs(SCALE_TARGET_L[i] - l) < Math.abs(SCALE_TARGET_L[baseIdx] - l)) baseIdx = i;
+  }
+  return SCALE_STEPS.map((step, i) => {
+    if (i === baseIdx) {
+      return { step, hex: normalizeHex(baseHex), isBase: true };
+    }
+    // Reduce saturation slightly at the very light/dark ends so colors don't get muddy or neon.
+    const sAdj = i <= 1 ? Math.min(s, 30) : i >= 9 ? Math.min(s, 60) : s;
+    return { step, hex: hslToHex(h, sAdj, SCALE_TARGET_L[i]), isBase: false };
+  });
+}
+
+// Classic harmony combinations derived from the base color's hue.
+function generateHarmonies(baseHex) {
+  const hsl = hexToHsl(baseHex);
+  if (!hsl) return [];
+  const [h, s, l] = hsl;
+  const make = (offset) => hslToHex(h + offset, s, l);
+  return [
+    { id: 'complementary',   label: 'Complementary',   colors: [make(180)] },
+    { id: 'analogous',       label: 'Analogous',       colors: [make(-30), make(30)] },
+    { id: 'triadic',         label: 'Triadic',         colors: [make(120), make(240)] },
+    { id: 'split',           label: 'Split-complementary', colors: [make(150), make(210)] },
+    { id: 'tetradic',        label: 'Tetradic',        colors: [make(60), make(180), make(240)] },
+    { id: 'monochromatic',   label: 'Monochromatic',   colors: [
+      hslToHex(h, s, Math.max(10, l - 30)),
+      hslToHex(h, s, Math.max(15, l - 15)),
+      hslToHex(h, s, Math.min(90, l + 15)),
+      hslToHex(h, s, Math.min(95, l + 30)),
+    ]},
+  ];
+}
+
 // ---------- google font loader ----------
 const loadedFonts = new Set();
 function loadGoogleFont(name) {
@@ -385,6 +484,9 @@ const Icon = ({ name, className = 'w-4 h-4', strokeWidth = 1.8 }) => {
     case 'contrast': return <svg {...common}><circle cx="12" cy="12" r="10"/><path d="M12 2v20" fill="currentColor" stroke="none"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" stroke="none"/></svg>;
     case 'eye': return <svg {...common}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
     case 'stack': return <svg {...common}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
+    case 'sparkle': return <svg {...common}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/><path d="M19 17l.7 1.8L21 19.5l-1.3.7L19 22l-.7-1.8L17 19.5l1.3-.7L19 17z"/></svg>;
+    case 'grip': return <svg {...common}><circle cx="9" cy="6" r="1" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="18" r="1" fill="currentColor"/><circle cx="15" cy="6" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="18" r="1" fill="currentColor"/></svg>;
+    case 'plus-circle': return <svg {...common}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>;
     default: return null;
   }
 };
@@ -768,10 +870,21 @@ function ExportMenu({ onExportJson, onExportCss, onExportPdf }) {
 }
 
 // ---------- color section ----------
-function ColorSection({ colors, onAdd, onUpdate, onDelete, onCopy }) {
+function ColorSection({ colors, onAdd, onUpdate, onDelete, onReorder, onCopy }) {
   const [adding, setAdding] = useState(false);
   const [mode, setMode] = useState('normal');
   const [contrastOpen, setContrastOpen] = useState(false);
+  // Drag-to-reorder state lives at section level so cards can render insertion markers.
+  const [dragId, setDragId] = useState(null);
+  const [dropMarker, setDropMarker] = useState(null); // { id, side: 'before'|'after' }
+
+  function handleDrop() {
+    if (dragId && dropMarker && dragId !== dropMarker.id) {
+      onReorder?.(dragId, dropMarker.id, dropMarker.side);
+    }
+    setDragId(null);
+    setDropMarker(null);
+  }
 
   const modeMeta = CVD_MODES.find(m => m.id === mode);
 
@@ -851,6 +964,22 @@ function ColorSection({ colors, onAdd, onUpdate, onDelete, onCopy }) {
             onUpdate={(patch) => onUpdate(c.id, patch)}
             onDelete={() => onDelete(c.id)}
             onCopy={() => onCopy(c.hex)}
+            onAddDerived={(hex, label) => {
+              onAdd({ hex, purpose: 'Custom', customLabel: label });
+            }}
+            // Drag-and-drop wiring
+            isDragging={dragId === c.id}
+            dropMarker={dropMarker?.id === c.id ? dropMarker.side : null}
+            onDragStart={() => setDragId(c.id)}
+            onDragOver={(side) => {
+              if (!dragId || dragId === c.id) return;
+              setDropMarker({ id: c.id, side });
+            }}
+            onDragLeave={() => {
+              setDropMarker(prev => (prev?.id === c.id ? null : prev));
+            }}
+            onDrop={handleDrop}
+            onDragEnd={() => { setDragId(null); setDropMarker(null); }}
           />
         ))}
       </div>
@@ -865,17 +994,31 @@ function ColorSection({ colors, onAdd, onUpdate, onDelete, onCopy }) {
   );
 }
 
-function ColorCard({ color, displayHex, simulated, onUpdate, onDelete, onCopy }) {
+function ColorCard({
+  color, displayHex, simulated, onUpdate, onDelete, onCopy, onAddDerived,
+  isDragging, dropMarker, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
+}) {
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [exploreOpen, setExploreOpen] = useState(false);
   const display = color.purpose === 'Custom' ? (color.customLabel || 'Custom') : color.purpose;
   const swatchHex = displayHex || color.hex;
+  const baseLabel = color.purpose === 'Custom' ? (color.customLabel || 'Custom') : color.purpose;
 
   function handleCopy() {
     copyText(color.hex);
     onCopy();
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
+  }
+
+  function handleDragOver(e) {
+    if (!onDragOver) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const side = (e.clientX - rect.left) < rect.width / 2 ? 'before' : 'after';
+    onDragOver(side);
   }
 
   if (editing) {
@@ -891,42 +1034,174 @@ function ColorCard({ color, displayHex, simulated, onUpdate, onDelete, onCopy })
     );
   }
 
+  const dropBefore = dropMarker === 'before';
+  const dropAfter  = dropMarker === 'after';
+
   return (
-    <Card className="group overflow-hidden">
-      <div
-        className="h-28 checker relative cursor-pointer"
-        onClick={handleCopy}
-        title={simulated ? 'Click to copy original hex' : 'Click to copy hex'}
-      >
-        <div className="absolute inset-0" style={{ backgroundColor: swatchHex }} />
-        {simulated && (
-          <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-[10px] font-medium tracking-wide uppercase bg-black/35 text-white backdrop-blur">
-            Simulated
-          </div>
-        )}
+    <div
+      className="relative"
+      onDragOver={handleDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => { e.preventDefault(); onDrop?.(); }}
+    >
+      {dropBefore && <div className="absolute -left-2 top-0 bottom-0 w-1 rounded bg-indigo-500 z-20" />}
+      {dropAfter  && <div className="absolute -right-2 top-0 bottom-0 w-1 rounded bg-indigo-500 z-20" />}
+      <Card className={`group overflow-hidden transition-opacity ${isDragging ? 'opacity-40' : ''}`}>
         <div
-          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ color: contrastColor(swatchHex) }}
+          className="h-28 checker relative cursor-pointer"
+          onClick={handleCopy}
+          title={simulated ? 'Click to copy original hex' : 'Click to copy hex'}
         >
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium bg-black/25 text-white backdrop-blur px-2.5 py-1 rounded-full">
-            {copied ? <><Icon name="check" className="w-3.5 h-3.5" /> Copied</> : <><Icon name="copy" className="w-3.5 h-3.5" /> Copy hex</>}
-          </span>
-        </div>
-      </div>
-      <div className="p-3 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="font-mono text-sm font-medium tracking-tight">{color.hex}</div>
-          <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
-            {display}
-            {simulated && <span className="ml-1 text-neutral-400 dark:text-neutral-500">· appears as {swatchHex}</span>}
+          <div className="absolute inset-0" style={{ backgroundColor: swatchHex }} />
+          {simulated && (
+            <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-[10px] font-medium tracking-wide uppercase bg-black/35 text-white backdrop-blur">
+              Simulated
+            </div>
+          )}
+          <div
+            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ color: contrastColor(swatchHex) }}
+          >
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium bg-black/25 text-white backdrop-blur px-2.5 py-1 rounded-full">
+              {copied ? <><Icon name="check" className="w-3.5 h-3.5" /> Copied</> : <><Icon name="copy" className="w-3.5 h-3.5" /> Copy hex</>}
+            </span>
+          </div>
+          {/* Drag handle: only this region initiates drag, so swatch click still copies. */}
+          <div
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              try { e.dataTransfer.setData('text/plain', color.id); } catch {}
+              onDragStart?.();
+            }}
+            onDragEnd={onDragEnd}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-1.5 right-1.5 p-1 rounded-md cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ color: contrastColor(swatchHex), background: 'rgba(0,0,0,0.18)' }}
+            title="Drag to reorder"
+          >
+            <Icon name="grip" className="w-3.5 h-3.5" />
           </div>
         </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={() => setEditing(true)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" title="Edit"><Icon name="edit" className="w-3.5 h-3.5" /></button>
-          <button onClick={onDelete} className="p-1.5 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40" title="Delete"><Icon name="trash" className="w-3.5 h-3.5" /></button>
+        <div className="p-3 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-mono text-sm font-medium tracking-tight">{color.hex}</div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
+              {display}
+              {simulated && <span className="ml-1 text-neutral-400 dark:text-neutral-500">· appears as {swatchHex}</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => setExploreOpen(o => !o)}
+              className={`p-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 ${exploreOpen ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30' : 'text-neutral-500'}`}
+              title="Explore shades & harmony"
+            ><Icon name="sparkle" className="w-3.5 h-3.5" /></button>
+            <button onClick={() => setEditing(true)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" title="Edit"><Icon name="edit" className="w-3.5 h-3.5" /></button>
+            <button onClick={onDelete} className="p-1.5 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40" title="Delete"><Icon name="trash" className="w-3.5 h-3.5" /></button>
+          </div>
         </div>
+        {exploreOpen && (
+          <ColorExplorer
+            base={color.hex}
+            baseLabel={baseLabel}
+            onAdd={(hex, label) => onAddDerived?.(hex, label)}
+            onCopy={(hex) => { copyText(hex); onCopy?.(); }}
+          />
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function ColorExplorer({ base, baseLabel, onAdd, onCopy }) {
+  const [tab, setTab] = useState('shades');
+  const scale = useMemo(() => generateScale(base), [base]);
+  const harmonies = useMemo(() => generateHarmonies(base), [base]);
+
+  return (
+    <div className="border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-950/30 p-3 fade-in">
+      <div className="flex items-center justify-between mb-3">
+        <div className="inline-flex items-center gap-0.5 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800">
+          {[
+            { id: 'shades', label: 'Shades' },
+            { id: 'harmony', label: 'Harmony' },
+          ].map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                tab === t.id
+                  ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+              }`}
+            >{t.label}</button>
+          ))}
+        </div>
+        <div className="text-[10px] text-neutral-400 dark:text-neutral-500">Click swatch to copy · "+" to add</div>
       </div>
-    </Card>
+
+      {tab === 'shades' && (
+        <div className="grid grid-cols-11 gap-1">
+          {scale.map(s => (
+            <SwatchPill
+              key={s.step}
+              hex={s.hex}
+              label={String(s.step)}
+              hint={s.isBase ? 'Base' : null}
+              highlight={s.isBase}
+              onCopy={() => onCopy(s.hex)}
+              onAdd={() => onAdd(s.hex, `${baseLabel} ${s.step}`)}
+            />
+          ))}
+        </div>
+      )}
+
+      {tab === 'harmony' && (
+        <div className="space-y-2.5">
+          {harmonies.map(h => (
+            <div key={h.id}>
+              <div className="text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-1">{h.label}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {h.colors.map((hex, i) => (
+                  <SwatchPill
+                    key={i}
+                    hex={hex}
+                    label={hex}
+                    onCopy={() => onCopy(hex)}
+                    onAdd={() => onAdd(hex, h.label)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SwatchPill({ hex, label, hint, highlight, onCopy, onAdd }) {
+  const text = contrastColor(hex);
+  return (
+    <div className={`group/sw relative rounded-md overflow-hidden border ${highlight ? 'border-indigo-300 dark:border-indigo-700 ring-1 ring-indigo-200 dark:ring-indigo-900/60' : 'border-neutral-200 dark:border-neutral-800'}`}>
+      <button
+        onClick={onCopy}
+        className="block w-full h-12 relative"
+        style={{ backgroundColor: hex, color: text }}
+        title={`Copy ${hex}`}
+      >
+        <span className="absolute inset-x-0 bottom-0 px-1 py-0.5 text-[9px] font-mono leading-none truncate text-center">{label}</span>
+        {hint && <span className="absolute top-0.5 left-0.5 text-[8px] uppercase tracking-wider px-1 rounded bg-black/20 backdrop-blur">{hint}</span>}
+      </button>
+      <button
+        onClick={onAdd}
+        className="absolute top-0.5 right-0.5 p-0.5 rounded text-white bg-black/30 backdrop-blur opacity-0 group-hover/sw:opacity-100 transition-opacity hover:bg-black/45"
+        title="Add to palette"
+      >
+        <Icon name="plus" className="w-3 h-3" strokeWidth={2.4} />
+      </button>
+    </div>
   );
 }
 
@@ -1262,18 +1537,31 @@ function FontCard({ font, onUpdate, onDelete, onDuplicate }) {
   const [editing, setEditing] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
-  // tryOnWeight: live-preview weight set via [/] keys. Null when not in try-on mode.
-  const [tryOnWeight, setTryOnWeight] = useState(null);
+  const [compareTab, setCompareTab] = useState('weights'); // 'weights' | 'styles' | 'sizes'
+  // tryOn: live-preview overrides set via shortcut keys. Each value null when unset.
+  const [tryOn, setTryOn] = useState({ weight: null, size: null });
 
   useEffect(() => { loadGoogleFont(font.name); }, [font.name]);
 
-  // Cancel any pending try-on if the underlying weight changes (e.g. user saved through the form).
-  useEffect(() => { setTryOnWeight(null); }, [font.weight]);
+  // Cancel any pending try-on if the underlying value changes (e.g. user saved through the form).
+  useEffect(() => { setTryOn(t => ({ ...t, weight: null })); }, [font.weight]);
+  useEffect(() => { setTryOn(t => ({ ...t, size: null })); }, [font.size, font.sizeUnit]);
 
-  // Keyboard shortcuts: bracket keys to step weight, Enter saves, Esc cancels.
+  const tryOnActive = tryOn.weight != null || tryOn.size != null;
+
+  function commitTryOn() {
+    const patch = {};
+    if (tryOn.weight != null) patch.weight = tryOn.weight;
+    if (tryOn.size != null) patch.size = tryOn.size;
+    if (Object.keys(patch).length) onUpdate(patch);
+    setTryOn({ weight: null, size: null });
+  }
+  function cancelTryOn() { setTryOn({ weight: null, size: null }); }
+
+  // Keyboard shortcuts: [/] step weight, -/= step size, Enter saves, Esc cancels.
   // Listener is only attached while the card is hovered or already in try-on mode.
   useEffect(() => {
-    if (!hovered && tryOnWeight == null) return;
+    if (!hovered && !tryOnActive) return;
     if (editing) return;
     function onKey(e) {
       const t = e.target;
@@ -1283,29 +1571,38 @@ function FontCard({ font, onUpdate, onDelete, onDuplicate }) {
 
       if (e.key === '[' || e.key === ']') {
         e.preventDefault();
-        const cur = tryOnWeight != null ? tryOnWeight : Number(font.weight) || 400;
-        const knownIdx = FONT_WEIGHT_OPTIONS.findIndex(o => o.value === Number(cur));
-        let baseIdx = knownIdx;
-        if (baseIdx < 0) {
-          // Custom weight — snap to closest named weight before stepping.
-          baseIdx = FONT_WEIGHT_OPTIONS.reduce((best, o, i) =>
-            Math.abs(o.value - cur) < Math.abs(FONT_WEIGHT_OPTIONS[best].value - cur) ? i : best, 3);
-        }
-        const delta = e.key === '[' ? -1 : 1;
-        const nextIdx = Math.max(0, Math.min(FONT_WEIGHT_OPTIONS.length - 1, baseIdx + delta));
-        setTryOnWeight(FONT_WEIGHT_OPTIONS[nextIdx].value);
-      } else if (tryOnWeight != null && (e.key === 'Enter' || e.key === 'Return')) {
+        setTryOn(prev => {
+          const cur = prev.weight != null ? prev.weight : (Number(font.weight) || 400);
+          let baseIdx = FONT_WEIGHT_OPTIONS.findIndex(o => o.value === Number(cur));
+          if (baseIdx < 0) {
+            // Custom weight — snap to closest named weight before stepping.
+            baseIdx = FONT_WEIGHT_OPTIONS.reduce((best, o, i) =>
+              Math.abs(o.value - cur) < Math.abs(FONT_WEIGHT_OPTIONS[best].value - cur) ? i : best, 3);
+          }
+          const delta = e.key === '[' ? -1 : 1;
+          const nextIdx = Math.max(0, Math.min(FONT_WEIGHT_OPTIONS.length - 1, baseIdx + delta));
+          return { ...prev, weight: FONT_WEIGHT_OPTIONS[nextIdx].value };
+        });
+      } else if (e.key === '-' || e.key === '_' || e.key === '=' || e.key === '+') {
         e.preventDefault();
-        onUpdate({ weight: tryOnWeight });
-        setTryOnWeight(null);
-      } else if (tryOnWeight != null && e.key === 'Escape') {
+        setTryOn(prev => {
+          const cur = prev.size != null ? prev.size : Number(font.size) || DEFAULT_TYPE_SIZE;
+          const step = sizeStep(font.sizeUnit || 'px') * (e.shiftKey ? 4 : 1);
+          const dir = (e.key === '-' || e.key === '_') ? -1 : 1;
+          const next = roundSize(Math.max(1, cur + step * dir));
+          return { ...prev, size: next };
+        });
+      } else if (tryOnActive && (e.key === 'Enter' || e.key === 'Return')) {
         e.preventDefault();
-        setTryOnWeight(null);
+        commitTryOn();
+      } else if (tryOnActive && e.key === 'Escape') {
+        e.preventDefault();
+        cancelTryOn();
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [hovered, tryOnWeight, font.weight, editing, onUpdate]);
+  }, [hovered, tryOnActive, tryOn, font.weight, font.size, font.sizeUnit, editing]);
 
   if (editing) {
     return (
@@ -1324,9 +1621,10 @@ function FontCard({ font, onUpdate, onDelete, onDuplicate }) {
   const sampleText = font.sample?.trim() || defaultSample(font.purpose);
   const isMono = /mono|code/i.test(font.purpose) || /mono/i.test(font.name);
   const unit = font.sizeUnit || 'px';
-  const previewSizePx = unit === 'px' ? Math.min(Math.max(font.size, 8), 120) : approxToPx(font.size, unit);
   const fontFamily = `"${font.name}", ${isMono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'Inter, system-ui, sans-serif'}`;
-  const displayWeight = tryOnWeight != null ? tryOnWeight : (font.weight || 400);
+  const displayWeight = tryOn.weight != null ? tryOn.weight : (font.weight || 400);
+  const displaySize = tryOn.size != null ? tryOn.size : font.size;
+  const previewSizePx = unit === 'px' ? Math.min(Math.max(displaySize, 8), 200) : Math.min(Math.max(approxToPx(displaySize, unit), 8), 200);
   const meta = [
     `${font.size}${unit}`,
     weightLabel(font.weight),
@@ -1360,22 +1658,19 @@ function FontCard({ font, onUpdate, onDelete, onDuplicate }) {
           </div>
         </div>
 
-        {tryOnWeight != null && (
+        {tryOnActive && (
           <div className="mb-3 px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between gap-3 text-xs">
             <span className="text-indigo-900 dark:text-indigo-200">
-              Trying on <strong>{weightLabel(tryOnWeight)} ({tryOnWeight})</strong>
-              <span className="text-indigo-500/80 dark:text-indigo-300/70 ml-2">[/] step · Enter save · Esc cancel</span>
+              Trying on{' '}
+              {tryOn.weight != null && (<strong>{weightLabel(tryOn.weight)} ({tryOn.weight})</strong>)}
+              {tryOn.weight != null && tryOn.size != null && ', '}
+              {tryOn.size != null && (<strong>{tryOn.size}{unit}</strong>)}
+              <span className="text-indigo-500/80 dark:text-indigo-300/70 ml-2">· Enter save · Esc cancel</span>
             </span>
             <span className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={() => { onUpdate({ weight: tryOnWeight }); setTryOnWeight(null); }}
-                className="text-indigo-600 dark:text-indigo-300 font-medium hover:underline"
-              >Save</button>
+              <button onClick={commitTryOn} className="text-indigo-600 dark:text-indigo-300 font-medium hover:underline">Save</button>
               <span className="text-indigo-300 dark:text-indigo-700">·</span>
-              <button
-                onClick={() => setTryOnWeight(null)}
-                className="text-neutral-500 dark:text-neutral-400 hover:underline"
-              >Cancel</button>
+              <button onClick={cancelTryOn} className="text-neutral-500 dark:text-neutral-400 hover:underline">Cancel</button>
             </span>
           </div>
         )}
@@ -1384,7 +1679,7 @@ function FontCard({ font, onUpdate, onDelete, onDuplicate }) {
           className="min-h-[3rem] leading-snug text-neutral-900 dark:text-neutral-100 break-words"
           style={{
             fontFamily,
-            fontSize: `${Math.min(Math.max(previewSizePx, 8), 200)}px`,
+            fontSize: `${previewSizePx}px`,
             fontWeight: displayWeight,
             fontStyle: font.style || 'normal',
             letterSpacing: font.tracking || 'normal',
@@ -1393,20 +1688,21 @@ function FontCard({ font, onUpdate, onDelete, onDuplicate }) {
           {sampleText}
         </div>
 
-        {hovered && tryOnWeight == null && !compareOpen && (
-          <div className="mt-3 text-[10px] text-neutral-400 dark:text-neutral-500 tracking-wide">
-            Tip: press <kbd className="font-mono px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">[</kbd> / <kbd className="font-mono px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">]</kbd> to step weight live.
+        {hovered && !tryOnActive && !compareOpen && (
+          <div className="mt-3 text-[10px] text-neutral-400 dark:text-neutral-500 tracking-wide flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span><Kbd>[</Kbd> <Kbd>]</Kbd> step weight</span>
+            <span><Kbd>−</Kbd> <Kbd>=</Kbd> step size <span className="opacity-60">(hold ⇧ for ×4)</span></span>
           </div>
         )}
 
         {compareOpen && (
-          <WeightLadder
+          <CompareExpander
             font={font}
             sampleText={sampleText}
             fontFamily={fontFamily}
-            previewSizePx={previewSizePx}
-            currentWeight={font.weight || 400}
-            onPick={(w) => { onUpdate({ weight: w }); setTryOnWeight(null); }}
+            tab={compareTab}
+            onTab={setCompareTab}
+            onPick={(patch) => { onUpdate(patch); setTryOn({ weight: null, size: null }); }}
           />
         )}
       </div>
@@ -1414,48 +1710,146 @@ function FontCard({ font, onUpdate, onDelete, onDuplicate }) {
   );
 }
 
-function WeightLadder({ font, sampleText, fontFamily, previewSizePx, currentWeight, onPick }) {
-  // Show a smaller preview size so all 9 weights fit comfortably.
-  const ladderSize = Math.max(14, Math.min(previewSizePx, 28));
+function Kbd({ children }) {
+  return <kbd className="font-mono px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300">{children}</kbd>;
+}
+
+function CompareExpander({ font, sampleText, fontFamily, tab, onTab, onPick }) {
+  const tabs = [
+    { id: 'weights', label: 'Weights' },
+    { id: 'styles',  label: 'Styles' },
+    { id: 'sizes',   label: 'Sizes' },
+  ];
+
   return (
     <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-[11px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Compare weights</div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="inline-flex items-center gap-0.5 p-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => onTab(t.id)}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                tab === t.id
+                  ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+              }`}
+            >{t.label}</button>
+          ))}
+        </div>
         <div className="text-[10px] text-neutral-400 dark:text-neutral-500">Click a row to apply</div>
       </div>
-      <div className="space-y-0.5">
-        {FONT_WEIGHT_OPTIONS.map(o => {
-          const active = Number(currentWeight) === o.value;
-          return (
-            <button
-              key={o.value}
-              onClick={() => onPick(o.value)}
-              className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-3 transition-colors ${
-                active
-                  ? 'bg-indigo-50 dark:bg-indigo-950/40 ring-1 ring-indigo-200 dark:ring-indigo-900/60'
-                  : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/60'
-              }`}
-            >
-              <div className="w-28 shrink-0 text-xs">
-                <div className={`font-medium ${active ? 'text-indigo-700 dark:text-indigo-300' : 'text-neutral-700 dark:text-neutral-200'}`}>{o.label}</div>
-                <div className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">{o.value}</div>
-              </div>
-              <div
-                className="flex-1 truncate"
-                style={{
-                  fontFamily,
-                  fontSize: `${ladderSize}px`,
-                  fontWeight: o.value,
-                  fontStyle: font.style || 'normal',
-                  lineHeight: 1.2,
-                }}
-              >
-                {sampleText}
-              </div>
-            </button>
-          );
-        })}
+
+      {tab === 'weights' && <WeightLadder font={font} sampleText={sampleText} fontFamily={fontFamily} onPick={onPick} />}
+      {tab === 'styles'  && <StyleLadder  font={font} sampleText={sampleText} fontFamily={fontFamily} onPick={onPick} />}
+      {tab === 'sizes'   && <SizeLadder   font={font} sampleText={sampleText} fontFamily={fontFamily} onPick={onPick} />}
+    </div>
+  );
+}
+
+function LadderRow({ active, onClick, leadLabel, leadSub, sampleText, sampleStyle }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-3 transition-colors ${
+        active
+          ? 'bg-indigo-50 dark:bg-indigo-950/40 ring-1 ring-indigo-200 dark:ring-indigo-900/60'
+          : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/60'
+      }`}
+    >
+      <div className="w-28 shrink-0 text-xs">
+        <div className={`font-medium ${active ? 'text-indigo-700 dark:text-indigo-300' : 'text-neutral-700 dark:text-neutral-200'}`}>{leadLabel}</div>
+        {leadSub != null && <div className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">{leadSub}</div>}
       </div>
+      <div className="flex-1 truncate" style={sampleStyle}>{sampleText}</div>
+    </button>
+  );
+}
+
+function WeightLadder({ font, sampleText, fontFamily, onPick }) {
+  return (
+    <div className="space-y-0.5">
+      {FONT_WEIGHT_OPTIONS.map(o => {
+        const active = Number(font.weight) === o.value;
+        return (
+          <LadderRow
+            key={o.value}
+            active={active}
+            onClick={() => onPick({ weight: o.value })}
+            leadLabel={o.label}
+            leadSub={o.value}
+            sampleText={sampleText}
+            sampleStyle={{
+              fontFamily,
+              fontSize: '20px',
+              fontWeight: o.value,
+              fontStyle: font.style || 'normal',
+              lineHeight: 1.2,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function StyleLadder({ font, sampleText, fontFamily, onPick }) {
+  return (
+    <div className="space-y-0.5">
+      {FONT_STYLE_OPTIONS.map(o => {
+        const active = (font.style || 'normal') === o.value;
+        return (
+          <LadderRow
+            key={o.value}
+            active={active}
+            onClick={() => onPick({ style: o.value })}
+            leadLabel={o.label}
+            leadSub={o.value}
+            sampleText={sampleText}
+            sampleStyle={{
+              fontFamily,
+              fontSize: '22px',
+              fontWeight: font.weight || 400,
+              fontStyle: o.value,
+              lineHeight: 1.2,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function SizeLadder({ font, sampleText, fontFamily, onPick }) {
+  const unit = font.sizeUnit || 'px';
+  const base = SIZE_LADDER_BY_UNIT[unit] || SIZE_LADDER_BY_UNIT.px;
+  // Splice in the current size and dedupe so it always appears highlighted.
+  const ladder = Array.from(new Set([...base, Number(font.size)].map(roundSize))).sort((a, b) => a - b);
+
+  return (
+    <div className="space-y-0.5">
+      {ladder.map(s => {
+        const active = Number(font.size) === s;
+        // For the displayed sample we cap rendering at 64px so larger sizes don't blow out the card.
+        const samplePx = unit === 'px' ? Math.min(s, 64) : Math.min(approxToPx(s, unit), 64);
+        return (
+          <LadderRow
+            key={s}
+            active={active}
+            onClick={() => onPick({ size: s })}
+            leadLabel={`${s}${unit}`}
+            leadSub={unit !== 'px' ? `≈ ${approxToPx(s, unit)}px` : null}
+            sampleText={sampleText}
+            sampleStyle={{
+              fontFamily,
+              fontSize: `${Math.max(samplePx, 11)}px`,
+              fontWeight: font.weight || 400,
+              fontStyle: font.style || 'normal',
+              lineHeight: 1.15,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -1962,6 +2356,23 @@ function App() {
     show('Color removed');
   }, [activeProject, show]);
 
+  // Move source before/after target. `placement` is 'before' or 'after'.
+  const reorderColor = useCallback((sourceId, targetId, placement = 'before') => {
+    if (!activeProject || sourceId === targetId) return;
+    setProjects(prev => prev.map(p => {
+      if (p.id !== activeProject.id) return p;
+      const cols = [...p.colors];
+      const fromIdx = cols.findIndex(c => c.id === sourceId);
+      if (fromIdx < 0) return p;
+      const [moved] = cols.splice(fromIdx, 1);
+      let toIdx = cols.findIndex(c => c.id === targetId);
+      if (toIdx < 0) toIdx = cols.length;
+      if (placement === 'after') toIdx += 1;
+      cols.splice(toIdx, 0, moved);
+      return { ...p, colors: cols };
+    }));
+  }, [activeProject]);
+
   // font actions
   const addFont = useCallback((patch) => {
     if (!activeProject) return;
@@ -2099,6 +2510,7 @@ function App() {
               onAdd={addColor}
               onUpdate={updateColor}
               onDelete={deleteColor}
+              onReorder={reorderColor}
               onCopy={() => show('Hex copied')}
             />
             <div className="mx-8 border-t border-neutral-200 dark:border-neutral-800" />
