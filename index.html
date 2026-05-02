@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Style Guide Manager</title>
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%236366f1'/><text x='50' y='68' font-size='56' text-anchor='middle' fill='white' font-family='Inter,sans-serif' font-weight='700'>S</text></svg>" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          mono: ['JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  html, body, #root { height: 100%; }
+  body {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root { color-scheme: light; }
+  .dark { color-scheme: dark; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(120, 120, 120, 0.22); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(120, 120, 120, 0.4); }
+  .fade-in { animation: fade 0.18s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+  .toast-in { animation: toastIn 0.22s ease-out; }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  .checker {
+    background-image:
+      linear-gradient(45deg, #e5e5e5 25%, transparent 25%),
+      linear-gradient(-45deg, #e5e5e5 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #e5e5e5 75%),
+      linear-gradient(-45deg, transparent 75%, #e5e5e5 75%);
+    background-size: 14px 14px;
+    background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+  }
+  .dark .checker {
+    background-image:
+      linear-gradient(45deg, #404040 25%, transparent 25%),
+      linear-gradient(-45deg, #404040 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #404040 75%),
+      linear-gradient(-45deg, transparent 75%, #404040 75%);
+  }
+  input:focus, select:focus, button:focus, textarea:focus { outline: none; }
+  .focus-ring:focus-visible { box-shadow: 0 0 0 2px rgb(99 102 241 / 0.4); }
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+
+  /* ---------- print layout ---------- */
+  @media screen {
+    #print-view { display: none; }
+  }
+  @media print {
+    @page { size: A4; margin: 16mm 16mm 18mm 16mm; }
+    html, body { background: #fff !important; color: #111 !important; height: auto !important; overflow: visible !important; }
+    body.dark, html.dark { background: #fff !important; color: #111 !important; }
+    #app-screen { display: none !important; }
+    #print-view { display: block !important; color: #111 !important; }
+    #print-view * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+    .pv-page { break-after: page; page-break-after: always; }
+    .pv-page:last-child { break-after: auto; page-break-after: auto; }
+    .pv-avoid-break { break-inside: avoid; page-break-inside: avoid; }
+  }
+  /* print view — styles also used when previewing on screen if we ever enable it */
+  #print-view {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+    color: #111;
+  }
+  #print-view h1.pv-title { font-size: 34pt; font-weight: 700; letter-spacing: -0.02em; margin: 0; line-height: 1.05; }
+  #print-view h2.pv-section { font-size: 14pt; font-weight: 600; margin: 0 0 12pt 0; letter-spacing: -0.01em; border-bottom: 1px solid #e5e5e5; padding-bottom: 6pt; }
+  #print-view .pv-eyebrow { font-size: 8pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #666; }
+  #print-view .pv-meta { font-size: 9pt; color: #666; }
+  #print-view .pv-divider { height: 1px; background: #e5e5e5; margin: 18pt 0; }
+  #print-view .pv-footer { position: running(footer); font-size: 8pt; color: #999; }
+  #print-view .pv-cover { min-height: 230mm; display: flex; flex-direction: column; justify-content: space-between; }
+  #print-view .pv-color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10pt 12pt; }
+  #print-view .pv-color { break-inside: avoid; page-break-inside: avoid; }
+  #print-view .pv-swatch { width: 100%; aspect-ratio: 4/3; border-radius: 4pt; border: 1px solid rgba(0,0,0,0.06); }
+  #print-view .pv-color .mono { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-size: 9pt; margin-top: 6pt; letter-spacing: 0; }
+  #print-view .pv-color .lbl { font-size: 8pt; color: #666; margin-top: 2pt; }
+  #print-view .pv-type { break-inside: avoid; page-break-inside: avoid; padding: 12pt 0; border-bottom: 1px solid #eee; }
+  #print-view .pv-type:last-child { border-bottom: none; }
+  #print-view .pv-type .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12pt; font-size: 9pt; color: #666; margin-bottom: 6pt; }
+  #print-view .pv-type .row .name { color: #111; font-weight: 600; }
+  #print-view .pv-type .sample { color: #111; line-height: 1.2; word-wrap: break-word; }
+  #print-view .pv-swatch-strip { display: flex; gap: 2pt; margin-top: 14pt; }
+  #print-view .pv-swatch-strip div { flex: 1; height: 10pt; border-radius: 2pt; }
+</style>
+</head>
+<body class="bg-stone-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 overflow-hidden">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+// ---------- constants ----------
+const STORAGE_KEY = 'style-guide-manager-v1';
+
+const COLOR_PURPOSES = [
+  'Primary','Secondary','Background','Surface','Accent','Key Points',
+  'Text / Body','Muted Text','Border','Error','Warning','Success','Info',
+  'Overlay','Brand','Custom'
+];
+
+const TYPE_PURPOSES = [
+  'Display','Heading','Subheading','Body','Body Large','Body Small','Caption',
+  'Label','Button','Link','Quote / Blockquote','Code / Mono','Navigation',
+  'Tag / Badge','Footnote','Custom'
+];
+
+const DEFAULT_TYPE_SIZE = 16;
+
+// ---------- utilities ----------
+const uid = () =>
+  (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch { return null; }
+}
+
+function saveState(state) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+}
+
+function normalizeHex(input) {
+  if (!input) return '';
+  let v = input.trim();
+  if (!v) return '';
+  if (v[0] !== '#') v = '#' + v;
+  v = v.toUpperCase();
+  if (/^#[0-9A-F]{3}$/.test(v)) {
+    v = '#' + v.slice(1).split('').map(c => c + c).join('');
+  }
+  return v;
+}
+
+function isValidHex(input) {
+  if (!input) return false;
+  const v = input.trim().replace(/^#/, '');
+  return /^([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v);
+}
+
+function contrastColor(hex) {
+  const v = normalizeHex(hex).replace('#', '');
+  if (v.length < 6) return '#000';
+  const r = parseInt(v.slice(0, 2), 16);
+  const g = parseInt(v.slice(2, 4), 16);
+  const b = parseInt(v.slice(4, 6), 16);
+  // relative luminance
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? '#111' : '#fff';
+}
+
+function slugify(s) {
+  return (s || 'project').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+      return;
+    }
+  } catch {}
+  legacyCopy(text);
+}
+function legacyCopy(text) {
+  const t = document.createElement('textarea');
+  t.value = text;
+  t.setAttribute('readonly', '');
+  t.style.position = 'fixed';
+  t.style.top = '0';
+  t.style.left = '0';
+  t.style.opacity = '0';
+  document.body.appendChild(t);
+  t.select();
+  try { document.execCommand('copy'); } catch {}
+  t.remove();
+}
+
+// ---------- color math ----------
+function hexToRgb(hex) {
+  const v = normalizeHex(hex).replace('#', '');
+  if (v.length < 6) return null;
+  return [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)];
+}
+function rgbToHex([r, g, b]) {
+  const toHex = (n) => {
+    const v = Math.round(Math.min(255, Math.max(0, n)));
+    return v.toString(16).padStart(2, '0').toUpperCase();
+  };
+  return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
+// Color-vision deficiency simulation matrices (Brettel/Vienot approximations).
+// These run directly on sRGB — approximate but more than adequate as a design check.
+const CVD_MATRICES = {
+  protan:  [[0.567, 0.433, 0.000], [0.558, 0.442, 0.000], [0.000, 0.242, 0.758]],
+  deutan:  [[0.625, 0.375, 0.000], [0.700, 0.300, 0.000], [0.000, 0.300, 0.700]],
+  tritan:  [[0.950, 0.050, 0.000], [0.000, 0.433, 0.567], [0.000, 0.475, 0.525]],
+  achroma: [[0.299, 0.587, 0.114], [0.299, 0.587, 0.114], [0.299, 0.587, 0.114]],
+};
+
+const CVD_MODES = [
+  { id: 'normal',  label: 'Normal',        short: 'Normal' },
+  { id: 'protan',  label: 'Protanopia',    short: 'Protan' },
+  { id: 'deutan',  label: 'Deuteranopia',  short: 'Deutan' },
+  { id: 'tritan',  label: 'Tritanopia',    short: 'Tritan' },
+  { id: 'achroma', label: 'Achromatopsia', short: 'Achroma' },
+];
+
+function simulateCVD(hex, mode) {
+  if (!mode || mode === 'normal') return hex;
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const m = CVD_MATRICES[mode];
+  if (!m) return hex;
+  const [r, g, b] = rgb;
+  return rgbToHex([
+    r * m[0][0] + g * m[0][1] + b * m[0][2],
+    r * m[1][0] + g * m[1][1] + b * m[1][2],
+    r * m[2][0] + g * m[2][1] + b * m[2][2],
+  ]);
+}
+
+// WCAG 2.x relative luminance + contrast ratio
+function relativeLuminance(rgb) {
+  const f = (c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * f(rgb[0]) + 0.7152 * f(rgb[1]) + 0.0722 * f(rgb[2]);
+}
+function contrastRatio(hexA, hexB) {
+  const a = hexToRgb(hexA), b = hexToRgb(hexB);
+  if (!a || !b) return 1;
+  const la = relativeLuminance(a), lb = relativeLuminance(b);
+  const bright = Math.max(la, lb), dim = Math.min(la, lb);
+  return (bright + 0.05) / (dim + 0.05);
+}
+function contrastGrade(ratio) {
+  if (ratio >= 7)   return { label: 'AAA', tone: 'pass' };
+  if (ratio >= 4.5) return { label: 'AA',  tone: 'pass' };
+  if (ratio >= 3)   return { label: 'AA Large', tone: 'mid' };
+  return { label: 'Fail', tone: 'fail' };
+}
+
+// ---------- google font loader ----------
+const loadedFonts = new Set();
+function loadGoogleFont(name) {
+  if (!name) return;
+  const key = name.trim();
+  if (!key) return;
+  const lk = key.toLowerCase();
+  if (loadedFonts.has(lk)) return;
+  loadedFonts.add(lk);
+  const family = encodeURIComponent(key).replace(/%20/g, '+');
+  const link = document.createElement('link');
+  link.href = `https://fonts.googleapis.com/css2?family=${family}:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap`;
+  link.rel = 'stylesheet';
+  link.dataset.sgFont = lk;
+  document.head.appendChild(link);
+}
+
+// ---------- icons (inline svg) ----------
+const Icon = ({ name, className = 'w-4 h-4', strokeWidth = 1.8 }) => {
+  const common = {
+    xmlns: 'http://www.w3.org/2000/svg',
+    width: 24, height: 24, viewBox: '0 0 24 24',
+    fill: 'none', stroke: 'currentColor',
+    strokeWidth, strokeLinecap: 'round', strokeLinejoin: 'round',
+    className,
+  };
+  switch (name) {
+    case 'plus': return <svg {...common}><path d="M12 5v14M5 12h14"/></svg>;
+    case 'trash': return <svg {...common}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/><path d="M10 11v6M14 11v6"/></svg>;
+    case 'edit': return <svg {...common}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>;
+    case 'copy': return <svg {...common}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>;
+    case 'check': return <svg {...common}><path d="M20 6 9 17l-5-5"/></svg>;
+    case 'sun': return <svg {...common}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>;
+    case 'moon': return <svg {...common}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>;
+    case 'type': return <svg {...common}><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>;
+    case 'droplet': return <svg {...common}><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z"/></svg>;
+    case 'more': return <svg {...common}><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>;
+    case 'download': return <svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+    case 'upload': return <svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+    case 'duplicate': return <svg {...common}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>;
+    case 'x': return <svg {...common}><path d="M18 6 6 18M6 6l12 12"/></svg>;
+    case 'palette': return <svg {...common}><path d="M12 22a10 10 0 1 1 10-10c0 2.76-2.24 5-5 5h-2a3 3 0 0 0-3 3 2 2 0 0 1-2 2z"/><circle cx="7.5" cy="10.5" r=".8" fill="currentColor"/><circle cx="12" cy="7" r=".8" fill="currentColor"/><circle cx="16.5" cy="10.5" r=".8" fill="currentColor"/></svg>;
+    case 'folder': return <svg {...common}><path d="M4 4h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>;
+    case 'chevron': return <svg {...common}><polyline points="9 6 15 12 9 18"/></svg>;
+    case 'contrast': return <svg {...common}><circle cx="12" cy="12" r="10"/><path d="M12 2v20" fill="currentColor" stroke="none"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" stroke="none"/></svg>;
+    case 'eye': return <svg {...common}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+    default: return null;
+  }
+};
+
+// ---------- tiny ui atoms ----------
+function Button({ children, onClick, variant = 'default', size = 'md', className = '', type = 'button', disabled, title, as: As = 'button', ...rest }) {
+  const base = 'inline-flex items-center gap-1.5 font-medium rounded-lg transition-colors focus-ring disabled:opacity-50 disabled:cursor-not-allowed select-none';
+  const sizes = {
+    sm: 'text-xs px-2.5 py-1.5',
+    md: 'text-sm px-3 py-2',
+    lg: 'text-sm px-4 py-2.5',
+    icon: 'p-1.5',
+    iconSm: 'p-1',
+  };
+  const variants = {
+    default: 'bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700/60 text-neutral-800 dark:text-neutral-100 shadow-sm',
+    primary: 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100',
+    ghost: 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800',
+    danger: 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40',
+    subtle: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700',
+  };
+  return (
+    <As
+      type={As === 'button' ? type : undefined}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
+      {...rest}
+    >
+      {children}
+    </As>
+  );
+}
+
+function Input({ className = '', ...props }) {
+  return (
+    <input
+      {...props}
+      className={`w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg px-3 py-2 text-sm placeholder-neutral-400 dark:placeholder-neutral-500 focus:border-indigo-400 dark:focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/30 transition-colors ${className}`}
+    />
+  );
+}
+
+function Select({ className = '', children, ...props }) {
+  return (
+    <select
+      {...props}
+      className={`w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 dark:focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/30 transition-colors ${className}`}
+    >
+      {children}
+    </select>
+  );
+}
+
+function Label({ children, className = '' }) {
+  return <label className={`block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1 ${className}`}>{children}</label>;
+}
+
+function Card({ children, className = '' }) {
+  return (
+    <div className={`bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+// ---------- toast ----------
+function useToast() {
+  const [toast, setToast] = useState(null);
+  const timer = useRef(null);
+  const show = useCallback((message, variant = 'default') => {
+    setToast({ message, variant, id: uid() });
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setToast(null), 1800);
+  }, []);
+  return { toast, show };
+}
+
+function Toast({ toast }) {
+  if (!toast) return null;
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 toast-in">
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm shadow-lg">
+        <Icon name="check" className="w-4 h-4" />
+        {toast.message}
+      </div>
+    </div>
+  );
+}
+
+// ---------- confirm modal ----------
+function Modal({ open, onClose, title, children, footer, size = 'md', bodyClassName = 'px-5 py-4 text-sm text-neutral-700 dark:text-neutral-200' }) {
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape' && open) onClose?.(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  const sizeCls = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-2xl', xl: 'max-w-4xl', full: 'max-w-6xl' }[size] || 'max-w-md';
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4 fade-in">
+      <div className="absolute inset-0 bg-black/40 dark:bg-black/60" onClick={onClose} />
+      <div className={`relative z-10 w-full ${sizeCls} bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xl max-h-[90vh] flex flex-col`}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
+          <h3 className="font-semibold text-base">{title}</h3>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"><Icon name="x" /></button>
+        </div>
+        <div className={`${bodyClassName} overflow-auto flex-1`}>{children}</div>
+        {footer && <div className="px-5 py-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2 shrink-0">{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ---------- popover menu (simple) ----------
+function usePopover() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+  return { open, setOpen, ref };
+}
+
+// ---------- sidebar ----------
+function Sidebar({ projects, activeProjectId, onSelect, onCreate, onRename, onDelete, onDuplicate, theme, onToggleTheme }) {
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (renamingId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [renamingId]);
+
+  function startRename(p) {
+    setRenamingId(p.id);
+    setRenameValue(p.name);
+  }
+  function commitRename() {
+    if (renamingId && renameValue.trim()) onRename(renamingId, renameValue.trim());
+    setRenamingId(null);
+  }
+
+  return (
+    <aside className="w-72 shrink-0 h-full flex flex-col border-r border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/60 backdrop-blur">
+      <div className="px-5 pt-5 pb-3 flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white font-bold">S</div>
+        <div>
+          <div className="font-semibold leading-tight text-sm">Style Guide</div>
+          <div className="text-xs text-neutral-500 dark:text-neutral-400 leading-tight">Manager</div>
+        </div>
+      </div>
+
+      <div className="px-3 pt-2 pb-3">
+        <Button onClick={onCreate} variant="primary" className="w-full justify-center">
+          <Icon name="plus" className="w-4 h-4" /> New project
+        </Button>
+      </div>
+
+      <div className="px-3 pb-1">
+        <div className="px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+          Projects {projects.length > 0 && <span className="text-neutral-300 dark:text-neutral-600">· {projects.length}</span>}
+        </div>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto px-2 pb-3">
+        {projects.length === 0 && (
+          <div className="mx-3 mt-4 p-4 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-700 text-center">
+            <Icon name="folder" className="w-5 h-5 mx-auto text-neutral-400 dark:text-neutral-500" />
+            <div className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">No projects yet</div>
+            <div className="text-xs text-neutral-400 dark:text-neutral-500">Create one to get started</div>
+          </div>
+        )}
+        {projects.map(p => (
+          <ProjectRow
+            key={p.id}
+            project={p}
+            active={p.id === activeProjectId}
+            onSelect={() => onSelect(p.id)}
+            onRenameStart={() => startRename(p)}
+            onDelete={() => onDelete(p.id)}
+            onDuplicate={() => onDuplicate(p.id)}
+            renaming={renamingId === p.id}
+            renameValue={renameValue}
+            setRenameValue={setRenameValue}
+            commitRename={commitRename}
+            cancelRename={() => setRenamingId(null)}
+            inputRef={inputRef}
+          />
+        ))}
+      </nav>
+
+      <div className="px-3 py-3 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+        <div className="text-xs text-neutral-400 dark:text-neutral-500">Saved locally</div>
+        <button
+          onClick={onToggleTheme}
+          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          className="p-1.5 rounded-md text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        >
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} className="w-4 h-4" />
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function ProjectRow({ project, active, onSelect, onRenameStart, onDelete, onDuplicate, renaming, renameValue, setRenameValue, commitRename, cancelRename, inputRef }) {
+  const { open, setOpen, ref } = usePopover();
+  const colorSwatches = project.colors.slice(0, 4);
+
+  if (renaming) {
+    return (
+      <div className="px-2 py-1.5">
+        <input
+          ref={inputRef}
+          value={renameValue}
+          onChange={e => setRenameValue(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={e => {
+            if (e.key === 'Enter') commitRename();
+            if (e.key === 'Escape') cancelRename();
+          }}
+          className="w-full bg-white dark:bg-neutral-800 border border-indigo-300 dark:border-indigo-500 rounded-md px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-500/30"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={onSelect}
+      className={`group mx-0 my-0.5 px-2.5 py-2 rounded-lg cursor-pointer flex items-center gap-2 transition-colors ${
+        active
+          ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white'
+          : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/70 text-neutral-700 dark:text-neutral-300'
+      }`}
+    >
+      <div className="flex -space-x-1.5 shrink-0">
+        {colorSwatches.length === 0 ? (
+          <div className="w-4 h-4 rounded-full border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-700" />
+        ) : (
+          colorSwatches.map((c, i) => (
+            <div
+              key={c.id}
+              className="w-4 h-4 rounded-full ring-2 ring-white dark:ring-neutral-900 border border-black/5"
+              style={{ backgroundColor: c.hex, zIndex: 10 - i }}
+            />
+          ))
+        )}
+      </div>
+      <div className="flex-1 truncate text-sm">{project.name}</div>
+      <div className="relative shrink-0" ref={ref}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+          className={`p-1 rounded-md ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700`}
+          title="More"
+        >
+          <Icon name="more" className="w-4 h-4" />
+        </button>
+        {open && (
+          <div className="absolute right-0 top-full mt-1 z-30 min-w-[160px] py-1 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-lg fade-in">
+            <MenuItem onClick={(e) => { e.stopPropagation(); setOpen(false); onRenameStart(); }} icon="edit">Rename</MenuItem>
+            <MenuItem onClick={(e) => { e.stopPropagation(); setOpen(false); onDuplicate(); }} icon="duplicate">Duplicate</MenuItem>
+            <div className="my-1 border-t border-neutral-200 dark:border-neutral-700" />
+            <MenuItem onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }} icon="trash" danger>Delete</MenuItem>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MenuItem({ children, onClick, icon, danger }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 ${
+        danger ? 'text-red-600 dark:text-red-400' : 'text-neutral-700 dark:text-neutral-200'
+      }`}
+    >
+      {icon && <Icon name={icon} className="w-4 h-4" />}
+      {children}
+    </button>
+  );
+}
+
+// ---------- project header ----------
+function ProjectHeader({ project, onRename, onExportJson, onExportCss, onExportPdf, onImportJson }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(project.name);
+  const inputRef = useRef(null);
+  const fileRef = useRef(null);
+
+  useEffect(() => { setName(project.name); }, [project.id, project.name]);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  function commit() {
+    if (name.trim()) onRename(name.trim());
+    setEditing(false);
+  }
+
+  return (
+    <header className="px-8 pt-8 pb-4 border-b border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/70 backdrop-blur sticky top-0 z-10">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1">Style guide</div>
+          {editing ? (
+            <input
+              ref={inputRef}
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onBlur={commit}
+              onKeyDown={e => {
+                if (e.key === 'Enter') commit();
+                if (e.key === 'Escape') { setName(project.name); setEditing(false); }
+              }}
+              className="text-2xl font-semibold bg-transparent border-b border-indigo-400 focus:border-indigo-500 outline-none w-full max-w-lg"
+            />
+          ) : (
+            <h1
+              className="text-2xl font-semibold leading-tight cursor-text hover:bg-neutral-100/60 dark:hover:bg-neutral-800/60 rounded-md px-1 -mx-1 inline-block"
+              onDoubleClick={() => setEditing(true)}
+              title="Double-click to rename"
+            >
+              {project.name}
+            </h1>
+          )}
+          <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+            {project.colors.length} colors · {project.fonts.length} typefaces
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="default" size="sm" onClick={() => setEditing(true)} title="Rename project">
+            <Icon name="edit" className="w-3.5 h-3.5" /> Rename
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onImportJson(f);
+              e.target.value = '';
+            }}
+          />
+          <Button variant="default" size="sm" onClick={() => fileRef.current?.click()} title="Import a previously exported project JSON">
+            <Icon name="upload" className="w-3.5 h-3.5" /> Import
+          </Button>
+          <ExportMenu onExportJson={onExportJson} onExportCss={onExportCss} onExportPdf={onExportPdf} />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function ExportMenu({ onExportJson, onExportCss, onExportPdf }) {
+  const { open, setOpen, ref } = usePopover();
+  return (
+    <div className="relative" ref={ref}>
+      <Button variant="primary" size="sm" onClick={() => setOpen(o => !o)}>
+        <Icon name="download" className="w-3.5 h-3.5" /> Export
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-30 min-w-[240px] py-1 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-lg fade-in">
+          <MenuItem onClick={() => { setOpen(false); onExportPdf(); }}>Export as PDF</MenuItem>
+          <div className="my-1 border-t border-neutral-200 dark:border-neutral-700" />
+          <MenuItem onClick={() => { setOpen(false); onExportJson(); }}>Export as JSON</MenuItem>
+          <MenuItem onClick={() => { setOpen(false); onExportCss(); }}>Export as CSS variables</MenuItem>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- color section ----------
+function ColorSection({ colors, onAdd, onUpdate, onDelete, onCopy }) {
+  const [adding, setAdding] = useState(false);
+  const [mode, setMode] = useState('normal');
+  const [contrastOpen, setContrastOpen] = useState(false);
+
+  const modeMeta = CVD_MODES.find(m => m.id === mode);
+
+  return (
+    <section className="px-8 py-8">
+      <SectionHeader
+        icon="palette"
+        title="Color palette"
+        count={colors.length}
+        action={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setContrastOpen(true)}
+              disabled={colors.length === 0}
+              title={colors.length === 0 ? 'Add colors first' : 'Check every color pair against WCAG'}
+            >
+              <Icon name="contrast" className="w-3.5 h-3.5" /> Check contrast
+            </Button>
+            <Button variant="default" size="sm" onClick={() => setAdding(true)}>
+              <Icon name="plus" className="w-3.5 h-3.5" /> Add color
+            </Button>
+          </div>
+        }
+      />
+
+      {colors.length > 0 && (
+        <div className="mb-5 -mt-2 flex items-center gap-1.5 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400 mr-1">
+            <Icon name="eye" className="w-3.5 h-3.5" /> View as
+          </span>
+          {CVD_MODES.map(m => (
+            <button
+              key={m.id}
+              onClick={() => setMode(m.id)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                mode === m.id
+                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+              }`}
+              title={m.label}
+            >
+              {m.label}
+            </button>
+          ))}
+          {mode !== 'normal' && (
+            <span className="ml-2 text-[11px] text-neutral-400 dark:text-neutral-500">
+              Swatches show simulated appearance. Hex values are unchanged.
+            </span>
+          )}
+        </div>
+      )}
+
+      {adding && (
+        <div className="mb-4">
+          <ColorForm onCancel={() => setAdding(false)} onSubmit={(c) => { onAdd(c); setAdding(false); }} />
+        </div>
+      )}
+
+      {colors.length === 0 && !adding && (
+        <EmptyState
+          icon="droplet"
+          title="No colors yet"
+          hint="Add your first color to start the palette."
+          action={<Button variant="primary" size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="w-3.5 h-3.5" /> Add color</Button>}
+        />
+      )}
+
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+        {colors.map(c => (
+          <ColorCard
+            key={c.id}
+            color={c}
+            displayHex={simulateCVD(c.hex, mode)}
+            simulated={mode !== 'normal'}
+            onUpdate={(patch) => onUpdate(c.id, patch)}
+            onDelete={() => onDelete(c.id)}
+            onCopy={() => onCopy(c.hex)}
+          />
+        ))}
+      </div>
+
+      <ContrastModal
+        open={contrastOpen}
+        onClose={() => setContrastOpen(false)}
+        colors={colors}
+        onCopy={onCopy}
+      />
+    </section>
+  );
+}
+
+function ColorCard({ color, displayHex, simulated, onUpdate, onDelete, onCopy }) {
+  const [editing, setEditing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const display = color.purpose === 'Custom' ? (color.customLabel || 'Custom') : color.purpose;
+  const swatchHex = displayHex || color.hex;
+
+  function handleCopy() {
+    copyText(color.hex);
+    onCopy();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  }
+
+  if (editing) {
+    return (
+      <Card className="p-0 overflow-hidden">
+        <ColorForm
+          initial={color}
+          onCancel={() => setEditing(false)}
+          onSubmit={(patch) => { onUpdate(patch); setEditing(false); }}
+          onDelete={() => { setEditing(false); onDelete(); }}
+        />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="group overflow-hidden">
+      <div
+        className="h-28 checker relative cursor-pointer"
+        onClick={handleCopy}
+        title={simulated ? 'Click to copy original hex' : 'Click to copy hex'}
+      >
+        <div className="absolute inset-0" style={{ backgroundColor: swatchHex }} />
+        {simulated && (
+          <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-[10px] font-medium tracking-wide uppercase bg-black/35 text-white backdrop-blur">
+            Simulated
+          </div>
+        )}
+        <div
+          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ color: contrastColor(swatchHex) }}
+        >
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium bg-black/25 text-white backdrop-blur px-2.5 py-1 rounded-full">
+            {copied ? <><Icon name="check" className="w-3.5 h-3.5" /> Copied</> : <><Icon name="copy" className="w-3.5 h-3.5" /> Copy hex</>}
+          </span>
+        </div>
+      </div>
+      <div className="p-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-sm font-medium tracking-tight">{color.hex}</div>
+          <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
+            {display}
+            {simulated && <span className="ml-1 text-neutral-400 dark:text-neutral-500">· appears as {swatchHex}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={() => setEditing(true)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" title="Edit"><Icon name="edit" className="w-3.5 h-3.5" /></button>
+          <button onClick={onDelete} className="p-1.5 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40" title="Delete"><Icon name="trash" className="w-3.5 h-3.5" /></button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function ColorForm({ initial, onSubmit, onCancel, onDelete }) {
+  const [hex, setHex] = useState(initial?.hex || '#6366F1');
+  const [purpose, setPurpose] = useState(initial?.purpose || 'Primary');
+  const [customLabel, setCustomLabel] = useState(initial?.customLabel || '');
+  const [error, setError] = useState('');
+
+  const preview = isValidHex(hex) ? normalizeHex(hex) : null;
+
+  function handleSubmit(e) {
+    e?.preventDefault();
+    if (!isValidHex(hex)) { setError('Enter a valid hex (e.g. #4f46e5)'); return; }
+    onSubmit({
+      hex: normalizeHex(hex),
+      purpose,
+      customLabel: purpose === 'Custom' ? customLabel.trim() : '',
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="p-4 bg-neutral-50 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800 rounded-xl fade-in">
+      <div className="grid grid-cols-1 md:grid-cols-[auto,1fr,1fr] gap-3">
+        <div>
+          <Label>Swatch</Label>
+          <div className="flex items-center gap-2">
+            <div className="checker w-12 h-10 rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-700 relative">
+              <div className="absolute inset-0" style={{ backgroundColor: preview || 'transparent' }} />
+            </div>
+            <input
+              type="color"
+              value={preview || '#000000'}
+              onChange={(e) => { setHex(e.target.value.toUpperCase()); setError(''); }}
+              className="w-10 h-10 p-0 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-transparent cursor-pointer"
+              title="Color picker"
+            />
+          </div>
+        </div>
+        <div>
+          <Label>Hex code</Label>
+          <Input
+            value={hex}
+            onChange={(e) => { setHex(e.target.value); setError(''); }}
+            placeholder="#4f46e5"
+            className="font-mono"
+          />
+          {error && <div className="mt-1 text-xs text-red-500">{error}</div>}
+        </div>
+        <div>
+          <Label>Purpose</Label>
+          <Select value={purpose} onChange={e => setPurpose(e.target.value)}>
+            {COLOR_PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
+          </Select>
+        </div>
+      </div>
+      {purpose === 'Custom' && (
+        <div className="mt-3">
+          <Label>Custom label</Label>
+          <Input value={customLabel} onChange={e => setCustomLabel(e.target.value)} placeholder="e.g. Promo highlight" />
+        </div>
+      )}
+      <div className="mt-4 flex items-center justify-between gap-2">
+        <div>
+          {onDelete && (
+            <Button variant="danger" size="sm" onClick={onDelete} type="button">
+              <Icon name="trash" className="w-3.5 h-3.5" /> Delete
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onCancel} type="button">Cancel</Button>
+          <Button variant="primary" size="sm" type="submit">{initial ? 'Save changes' : 'Add color'}</Button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+// ---------- contrast modal ----------
+function ContrastModal({ open, onClose, colors, onCopy }) {
+  const [filter, setFilter] = useState('valid'); // 'valid' | 'all'
+  const [hover, setHover] = useState(null); // { row, col, rect }
+  const [copiedKey, setCopiedKey] = useState(null);
+
+  const rows = useMemo(() => {
+    const base = colors.map((c, i) => ({
+      hex: normalizeHex(c.hex),
+      label: c.purpose === 'Custom' ? (c.customLabel || `Custom ${i + 1}`) : c.purpose,
+    }));
+    return [
+      { hex: '#FFFFFF', label: 'White' },
+      ...base,
+      { hex: '#000000', label: 'Black' },
+    ];
+  }, [colors]);
+
+  // Stats
+  const totalPairs = rows.length * rows.length - rows.length; // exclude same-on-same
+  let validPairs = 0;
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = 0; j < rows.length; j++) {
+      if (i === j) continue;
+      if (contrastRatio(rows[i].hex, rows[j].hex) >= 4.5) validPairs++;
+    }
+  }
+
+  function handleCellClick(bg, text) {
+    copyText(text.hex);
+    onCopy?.(text.hex);
+    const key = bg.hex + '|' + text.hex;
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(k => (k === key ? null : k)), 1200);
+  }
+
+  const cellSize = rows.length <= 6 ? 64 : rows.length <= 10 ? 56 : 48;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Check palette contrast"
+      size="full"
+      bodyClassName="p-6"
+    >
+      <div className="flex flex-col gap-4">
+        <div className="text-xs text-neutral-500 dark:text-neutral-400">
+          Every palette color paired with each other — plus pure white and black — compared against the WCAG AA contrast ratio of 4.5:1. Hover a cell for details, click to copy the text color.
+        </div>
+
+        <div className="overflow-auto rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950/40">
+          <table className="border-collapse" style={{ minWidth: (rows.length + 1) * cellSize }}>
+            <thead>
+              <tr>
+                <th className="sticky left-0 top-0 z-20 bg-neutral-50 dark:bg-neutral-950/40" style={{ width: cellSize }}>
+                  <div className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider text-center leading-tight p-1">
+                    bg · text
+                  </div>
+                </th>
+                {rows.map((c, idx) => (
+                  <th key={'h' + idx} className="p-0" style={{ width: cellSize }}>
+                    <div className="flex flex-col items-center gap-1 py-2">
+                      <div className="w-5 h-5 rounded-full border border-neutral-300 dark:border-neutral-700" style={{ backgroundColor: c.hex }} />
+                      <div className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">{c.hex.replace('#', '')}</div>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((bg, ri) => (
+                <tr key={'r' + ri}>
+                  <th className="sticky left-0 z-10 bg-neutral-50 dark:bg-neutral-950/40 p-0" style={{ width: cellSize }}>
+                    <div className="flex items-center gap-2 px-2 py-2">
+                      <div className="w-5 h-5 rounded-full shrink-0 border border-neutral-300 dark:border-neutral-700" style={{ backgroundColor: bg.hex }} />
+                      <div className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">{bg.hex.replace('#', '')}</div>
+                    </div>
+                  </th>
+                  {rows.map((text, ci) => {
+                    const ratio = contrastRatio(bg.hex, text.hex);
+                    const passes = ratio >= 4.5;
+                    const isSelf = ri === ci;
+                    const show = !isSelf && (filter === 'all' || passes);
+                    const key = bg.hex + '|' + text.hex;
+                    const hovered = hover && hover.row === ri && hover.col === ci;
+                    return (
+                      <td key={'c' + ri + '_' + ci} className="p-0 relative" style={{ width: cellSize, height: cellSize }}>
+                        {isSelf ? (
+                          <div className="w-full h-full bg-neutral-100 dark:bg-neutral-900/60" />
+                        ) : show ? (
+                          <button
+                            type="button"
+                            onMouseEnter={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setHover({ row: ri, col: ci, rect });
+                            }}
+                            onMouseLeave={() => setHover(h => (h && h.row === ri && h.col === ci ? null : h))}
+                            onClick={() => handleCellClick(bg, text)}
+                            className="w-full h-full flex items-center justify-center cursor-pointer relative focus-ring"
+                            style={{ backgroundColor: bg.hex, color: text.hex }}
+                            aria-label={`Background ${bg.hex}, text ${text.hex}, contrast ratio ${ratio.toFixed(2)} to 1`}
+                          >
+                            <span className="font-semibold" style={{ fontSize: Math.round(cellSize * 0.4) }}>Aa</span>
+                          </button>
+                        ) : (
+                          <div className="w-full h-full bg-neutral-100 dark:bg-neutral-900/60 relative overflow-hidden" aria-hidden>
+                            <svg className="absolute inset-0 w-full h-full text-neutral-300 dark:text-neutral-700" viewBox="0 0 10 10" preserveAspectRatio="none">
+                              <line x1="0" y1="10" x2="10" y2="0" stroke="currentColor" strokeWidth="0.4" vectorEffect="non-scaling-stroke" />
+                            </svg>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {hover && ReactDOM.createPortal(
+          <ContrastTooltip
+            bg={rows[hover.row]}
+            text={rows[hover.col]}
+            ratio={contrastRatio(rows[hover.row].hex, rows[hover.col].hex)}
+            copied={copiedKey === (rows[hover.row].hex + '|' + rows[hover.col].hex)}
+            rect={hover.rect}
+          />,
+          document.body
+        )}
+
+        <div className="flex items-center justify-between gap-4 pt-1">
+          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+            <span className="font-medium text-neutral-700 dark:text-neutral-200">{validPairs}</span> of {totalPairs} pairs meet 4.5:1 (WCAG AA).{' '}
+            <span className="text-neutral-400 dark:text-neutral-500">3:1 works for large text; 7:1 is AAA.</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            <button
+              onClick={() => setFilter('valid')}
+              className={`font-medium ${filter === 'valid' ? 'text-indigo-600 dark:text-indigo-400' : 'text-neutral-400 dark:text-neutral-500'}`}
+            >Valid</button>
+            <button
+              onClick={() => setFilter(filter === 'valid' ? 'all' : 'valid')}
+              className="relative w-9 h-5 rounded-full bg-neutral-200 dark:bg-neutral-700 transition-colors"
+              aria-label="Toggle valid/all"
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-indigo-500 transition-all ${filter === 'all' ? 'left-[18px]' : 'left-0.5'}`}
+              />
+            </button>
+            <button
+              onClick={() => setFilter('all')}
+              className={`font-medium ${filter === 'all' ? 'text-indigo-600 dark:text-indigo-400' : 'text-neutral-400 dark:text-neutral-500'}`}
+            >All</button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ContrastTooltip({ bg, text, ratio, copied, rect }) {
+  const grade = contrastGrade(ratio);
+  const toneCls = grade.tone === 'pass'
+    ? 'text-emerald-400'
+    : grade.tone === 'mid'
+      ? 'text-amber-400'
+      : 'text-red-400';
+
+  const centerX = rect.left + rect.width / 2;
+  const aboveY = rect.top - 10;
+  const spaceAbove = rect.top;
+  const placeBelow = spaceAbove < 90;
+  const y = placeBelow ? rect.bottom + 10 : aboveY;
+
+  return (
+    <div
+      className="pointer-events-none whitespace-nowrap"
+      style={{ position: 'fixed', top: y, left: centerX, transform: `translate(-50%, ${placeBelow ? '0' : '-100%'})`, zIndex: 60 }}
+    >
+      <div className="bg-neutral-900 text-white text-[11px] rounded-lg px-2.5 py-1.5 shadow-lg relative">
+        <div className="font-medium">{copied ? 'Copied text color' : 'Copy text color'}</div>
+        <div className="mt-0.5 flex items-center gap-2 font-mono text-neutral-300">
+          <span>{text.hex}</span>
+          <span className="text-neutral-500">on</span>
+          <span>{bg.hex}</span>
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-neutral-300">
+          <span>{ratio.toFixed(2)}:1</span>
+          <span className={`font-semibold ${toneCls}`}>{grade.label}</span>
+        </div>
+        <div
+          className="w-2 h-2 bg-neutral-900 rotate-45 absolute left-1/2 -translate-x-1/2"
+          style={placeBelow ? { top: -4 } : { bottom: -4 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------- typography section ----------
+function TypographySection({ fonts, onAdd, onUpdate, onDelete }) {
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    fonts.forEach(f => loadGoogleFont(f.name));
+  }, [fonts]);
+
+  return (
+    <section className="px-8 pb-16">
+      <SectionHeader
+        icon="type"
+        title="Typography"
+        count={fonts.length}
+        action={
+          <Button variant="default" size="sm" onClick={() => setAdding(true)}>
+            <Icon name="plus" className="w-3.5 h-3.5" /> Add typeface
+          </Button>
+        }
+      />
+
+      {adding && (
+        <div className="mb-4">
+          <FontForm onCancel={() => setAdding(false)} onSubmit={(f) => { onAdd(f); setAdding(false); }} />
+        </div>
+      )}
+
+      {fonts.length === 0 && !adding && (
+        <EmptyState
+          icon="type"
+          title="No typefaces yet"
+          hint="Add any Google Font by name — the live preview will load automatically."
+          action={<Button variant="primary" size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="w-3.5 h-3.5" /> Add typeface</Button>}
+        />
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {fonts.map(f => (
+          <FontCard
+            key={f.id}
+            font={f}
+            onUpdate={(patch) => onUpdate(f.id, patch)}
+            onDelete={() => onDelete(f.id)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FontCard({ font, onUpdate, onDelete }) {
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => { loadGoogleFont(font.name); }, [font.name]);
+
+  if (editing) {
+    return (
+      <Card className="p-0 overflow-hidden">
+        <FontForm
+          initial={font}
+          onCancel={() => setEditing(false)}
+          onSubmit={(patch) => { onUpdate(patch); setEditing(false); }}
+          onDelete={() => { setEditing(false); onDelete(); }}
+        />
+      </Card>
+    );
+  }
+
+  const label = font.purpose === 'Custom' ? (font.customLabel || 'Custom') : font.purpose;
+  const sampleText = font.sample?.trim() || defaultSample(font.purpose);
+  const isMono = /mono|code/i.test(font.purpose) || /mono/i.test(font.name);
+
+  return (
+    <Card className="group p-5">
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{label}</div>
+          <div className="font-semibold text-lg truncate">{font.name}</div>
+          <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{font.size}px · weight {font.weight || 400}</div>
+        </div>
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button onClick={() => setEditing(true)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" title="Edit"><Icon name="edit" className="w-3.5 h-3.5" /></button>
+          <button onClick={onDelete} className="p-1.5 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40" title="Delete"><Icon name="trash" className="w-3.5 h-3.5" /></button>
+        </div>
+      </div>
+      <div
+        className="min-h-[3rem] leading-snug text-neutral-900 dark:text-neutral-100 break-words"
+        style={{
+          fontFamily: `"${font.name}", ${isMono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'Inter, system-ui, sans-serif'}`,
+          fontSize: `${Math.min(Math.max(font.size, 8), 120)}px`,
+          fontWeight: font.weight || 400,
+          letterSpacing: font.tracking || 'normal',
+        }}
+      >
+        {sampleText}
+      </div>
+    </Card>
+  );
+}
+
+function defaultSample(purpose) {
+  switch ((purpose || '').toLowerCase()) {
+    case 'display': return 'Designing with purpose.';
+    case 'heading': return 'A clear, confident heading';
+    case 'subheading': return 'A supporting subheading to expand the story';
+    case 'body': case 'body large':
+      return 'Typography shapes tone. Good body text disappears into the reading, carrying ideas without demanding attention.';
+    case 'body small': return 'Smaller running text, still comfortably readable at modest sizes.';
+    case 'caption': return 'A small caption — meta info, a credit, a note.';
+    case 'label': return 'Label text';
+    case 'button': return 'Get started';
+    case 'link': return 'Read more →';
+    case 'quote / blockquote': return '"Good design is as little design as possible." — Dieter Rams';
+    case 'code / mono': return 'const theme = createTheme({});';
+    case 'navigation': return 'Home  ·  Work  ·  About';
+    case 'tag / badge': return 'NEW · BETA · PRO';
+    case 'footnote': return '† Pricing shown in USD, excludes tax.';
+    default: return 'The quick brown fox jumps over the lazy dog 0123456789';
+  }
+}
+
+function FontForm({ initial, onSubmit, onCancel, onDelete }) {
+  const [name, setName] = useState(initial?.name || 'Inter');
+  const [purpose, setPurpose] = useState(initial?.purpose || 'Heading');
+  const [customLabel, setCustomLabel] = useState(initial?.customLabel || '');
+  const [size, setSize] = useState(initial?.size ?? 32);
+  const [weight, setWeight] = useState(initial?.weight ?? 600);
+  const [sample, setSample] = useState(initial?.sample || '');
+
+  useEffect(() => { loadGoogleFont(name); }, [name]);
+
+  function handleSubmit(e) {
+    e?.preventDefault();
+    if (!name.trim()) return;
+    onSubmit({
+      name: name.trim(),
+      purpose,
+      customLabel: purpose === 'Custom' ? customLabel.trim() : '',
+      size: Number(size) || DEFAULT_TYPE_SIZE,
+      weight: Number(weight) || 400,
+      sample: sample.trim(),
+    });
+  }
+
+  const previewFamily = `"${name.trim() || 'Inter'}", Inter, system-ui, sans-serif`;
+
+  return (
+    <form onSubmit={handleSubmit} className="p-4 bg-neutral-50 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800 rounded-xl fade-in">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <Label>Font name (Google Font)</Label>
+          <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Inter, Playfair Display" />
+        </div>
+        <div>
+          <Label>Purpose</Label>
+          <Select value={purpose} onChange={e => setPurpose(e.target.value)}>
+            {TYPE_PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
+          </Select>
+        </div>
+      </div>
+      {purpose === 'Custom' && (
+        <div className="mt-3">
+          <Label>Custom label</Label>
+          <Input value={customLabel} onChange={e => setCustomLabel(e.target.value)} placeholder="e.g. Pull quotes" />
+        </div>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+        <div>
+          <Label>Size (px)</Label>
+          <Input type="number" min="8" max="200" value={size} onChange={e => setSize(e.target.value)} />
+        </div>
+        <div>
+          <Label>Weight</Label>
+          <Select value={weight} onChange={e => setWeight(e.target.value)}>
+            {[300, 400, 500, 600, 700].map(w => <option key={w} value={w}>{w}</option>)}
+          </Select>
+        </div>
+        <div className="col-span-2 md:col-span-1">
+          <Label>Sample text (optional)</Label>
+          <Input value={sample} onChange={e => setSample(e.target.value)} placeholder="Auto if empty" />
+        </div>
+      </div>
+
+      <div className="mt-3 p-4 rounded-lg border border-dashed border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 overflow-hidden">
+        <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mb-2 uppercase tracking-wider">Live preview</div>
+        <div
+          className="break-words"
+          style={{
+            fontFamily: previewFamily,
+            fontSize: `${Math.min(Math.max(Number(size) || 16, 8), 120)}px`,
+            fontWeight: Number(weight) || 400,
+            lineHeight: 1.2,
+          }}
+        >
+          {(sample && sample.trim()) || defaultSample(purpose)}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-2">
+        <div>
+          {onDelete && (
+            <Button variant="danger" size="sm" onClick={onDelete} type="button">
+              <Icon name="trash" className="w-3.5 h-3.5" /> Delete
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onCancel} type="button">Cancel</Button>
+          <Button variant="primary" size="sm" type="submit">{initial ? 'Save changes' : 'Add typeface'}</Button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+// ---------- print view ----------
+function PrintView({ project }) {
+  useEffect(() => {
+    if (!project) return;
+    project.fonts.forEach(f => loadGoogleFont(f.name));
+  }, [project]);
+
+  if (!project) return null;
+
+  const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  const colors = project.colors || [];
+  const fonts = project.fonts || [];
+
+  const colorLabel = (c, i) => c.purpose === 'Custom' ? (c.customLabel || `Custom ${i + 1}`) : c.purpose;
+  const fontLabel = (f, i) => f.purpose === 'Custom' ? (f.customLabel || `Custom ${i + 1}`) : f.purpose;
+
+  return (
+    <div id="print-view">
+      {/* Cover page */}
+      <div className="pv-page pv-cover">
+        <div>
+          <div className="pv-eyebrow">Style Guide</div>
+          <h1 className="pv-title" style={{ marginTop: '6pt' }}>{project.name}</h1>
+          <div className="pv-meta" style={{ marginTop: '8pt' }}>
+            Generated {dateStr} · {colors.length} colors · {fonts.length} typefaces
+          </div>
+          {colors.length > 0 && (
+            <div className="pv-swatch-strip">
+              {colors.slice(0, 12).map(c => (
+                <div key={c.id} style={{ backgroundColor: c.hex, border: '1px solid rgba(0,0,0,0.06)' }} />
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ fontSize: '8pt', color: '#999' }}>
+          Created with Style Guide Manager
+        </div>
+      </div>
+
+      {/* Colors page */}
+      {colors.length > 0 && (
+        <div className="pv-page">
+          <h2 className="pv-section">Color palette</h2>
+          <div className="pv-color-grid">
+            {colors.map((c, i) => (
+              <div key={c.id} className="pv-color">
+                <div className="pv-swatch" style={{ backgroundColor: c.hex }} />
+                <div className="mono">{normalizeHex(c.hex)}</div>
+                <div className="lbl">{colorLabel(c, i)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Typography page */}
+      {fonts.length > 0 && (
+        <div className="pv-page">
+          <h2 className="pv-section">Typography</h2>
+          {fonts.map((f, i) => {
+            const isMono = /mono|code/i.test(f.purpose) || /mono/i.test(f.name);
+            const size = Math.min(Math.max(Number(f.size) || 16, 8), 120);
+            const sample = (f.sample && f.sample.trim()) || defaultSample(f.purpose);
+            return (
+              <div key={f.id} className="pv-type">
+                <div className="row">
+                  <span className="name">{fontLabel(f, i)}</span>
+                  <span>{f.name} · {size}px · {f.weight || 400}</span>
+                </div>
+                <div
+                  className="sample"
+                  style={{
+                    fontFamily: `"${f.name}", ${isMono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'Inter, sans-serif'}`,
+                    fontSize: `${size}px`,
+                    fontWeight: f.weight || 400,
+                  }}
+                >
+                  {sample}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {colors.length === 0 && fonts.length === 0 && (
+        <div className="pv-page">
+          <div className="pv-meta" style={{ marginTop: '40pt', textAlign: 'center' }}>
+            This project doesn't have any colors or typefaces yet.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- helpers: sections ----------
+function SectionHeader({ icon, title, count, action }) {
+  return (
+    <div className="flex items-end justify-between mb-5">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-neutral-600 dark:text-neutral-300">
+          <Icon name={icon} className="w-4 h-4" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold leading-tight">{title}</h2>
+          <div className="text-xs text-neutral-500 dark:text-neutral-400">{count} {count === 1 ? 'item' : 'items'}</div>
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, hint, action }) {
+  return (
+    <div className="border border-dashed border-neutral-200 dark:border-neutral-700 rounded-xl py-10 px-6 text-center bg-neutral-50/60 dark:bg-neutral-900/40 mb-4">
+      <div className="w-10 h-10 mx-auto rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-neutral-500 dark:text-neutral-400 mb-3">
+        <Icon name={icon} className="w-5 h-5" />
+      </div>
+      <div className="font-medium text-neutral-700 dark:text-neutral-200">{title}</div>
+      {hint && <div className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">{hint}</div>}
+      {action && <div className="mt-4 flex justify-center">{action}</div>}
+    </div>
+  );
+}
+
+// ---------- export helpers ----------
+function downloadFile(filename, content, type = 'application/json') {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function projectToCss(project) {
+  const safe = (s) => (s || '').replace(/[^a-z0-9-]/gi, '-').replace(/-+/g, '-').replace(/(^-|-$)/g, '').toLowerCase();
+  const lines = [];
+  lines.push(`/* ${project.name} — Style Guide */`);
+  lines.push(':root {');
+  project.colors.forEach((c, i) => {
+    const label = c.purpose === 'Custom' ? (c.customLabel || `custom-${i + 1}`) : c.purpose;
+    lines.push(`  --color-${safe(label)}-${i + 1}: ${c.hex};`);
+  });
+  project.fonts.forEach((f, i) => {
+    const label = f.purpose === 'Custom' ? (f.customLabel || `custom-${i + 1}`) : f.purpose;
+    lines.push(`  --font-${safe(label)}: "${f.name}", sans-serif;`);
+    lines.push(`  --font-size-${safe(label)}: ${f.size}px;`);
+    lines.push(`  --font-weight-${safe(label)}: ${f.weight || 400};`);
+  });
+  lines.push('}');
+  return lines.join('\n');
+}
+
+// ---------- app root ----------
+function createEmptyProject(name = 'Untitled project') {
+  return { id: uid(), name, createdAt: Date.now(), colors: [], fonts: [] };
+}
+
+function App() {
+  const { toast, show } = useToast();
+  const [projects, setProjects] = useState([]);
+  const [activeProjectId, setActiveProjectId] = useState(null);
+  const [theme, setTheme] = useState('light');
+  const [confirm, setConfirm] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+
+  // load
+  useEffect(() => {
+    const s = loadState();
+    if (s) {
+      setProjects(Array.isArray(s.projects) ? s.projects : []);
+      setActiveProjectId(s.activeProjectId || (s.projects?.[0]?.id ?? null));
+      setTheme(s.theme === 'dark' ? 'dark' : 'light');
+    } else {
+      // seed an example project for first-time users
+      const seed = {
+        ...createEmptyProject('Acme Brand'),
+        colors: [
+          { id: uid(), hex: '#111827', purpose: 'Text / Body', customLabel: '' },
+          { id: uid(), hex: '#6366F1', purpose: 'Primary', customLabel: '' },
+          { id: uid(), hex: '#F9FAFB', purpose: 'Background', customLabel: '' },
+          { id: uid(), hex: '#F59E0B', purpose: 'Accent', customLabel: '' },
+        ],
+        fonts: [
+          { id: uid(), name: 'Playfair Display', purpose: 'Display', size: 48, weight: 700, customLabel: '', sample: '' },
+          { id: uid(), name: 'Inter', purpose: 'Body', size: 16, weight: 400, customLabel: '', sample: '' },
+        ],
+      };
+      setProjects([seed]);
+      setActiveProjectId(seed.id);
+    }
+    setLoaded(true);
+  }, []);
+
+  // persist
+  useEffect(() => {
+    if (!loaded) return;
+    saveState({ projects, activeProjectId, theme });
+  }, [projects, activeProjectId, theme, loaded]);
+
+  // theme apply
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  const activeProject = useMemo(
+    () => projects.find(p => p.id === activeProjectId) || null,
+    [projects, activeProjectId]
+  );
+
+  // project actions
+  const createProject = useCallback(() => {
+    const p = createEmptyProject(`Project ${projects.length + 1}`);
+    setProjects(prev => [p, ...prev]);
+    setActiveProjectId(p.id);
+    show('Project created');
+  }, [projects.length, show]);
+
+  const renameProject = useCallback((id, name) => {
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, name } : p));
+  }, []);
+
+  const deleteProject = useCallback((id) => {
+    const p = projects.find(x => x.id === id);
+    if (!p) return;
+    setConfirm({
+      title: 'Delete project?',
+      body: `"${p.name}" will be permanently removed, including all colors and typefaces. This cannot be undone.`,
+      confirmLabel: 'Delete project',
+      danger: true,
+      onConfirm: () => {
+        setProjects(prev => {
+          const next = prev.filter(x => x.id !== id);
+          if (activeProjectId === id) setActiveProjectId(next[0]?.id ?? null);
+          return next;
+        });
+        show('Project deleted');
+      },
+    });
+  }, [projects, activeProjectId, show]);
+
+  const duplicateProject = useCallback((id) => {
+    const p = projects.find(x => x.id === id);
+    if (!p) return;
+    const copy = {
+      ...p,
+      id: uid(),
+      name: `${p.name} copy`,
+      createdAt: Date.now(),
+      colors: p.colors.map(c => ({ ...c, id: uid() })),
+      fonts: p.fonts.map(f => ({ ...f, id: uid() })),
+    };
+    setProjects(prev => {
+      const idx = prev.findIndex(x => x.id === id);
+      const next = [...prev];
+      next.splice(idx + 1, 0, copy);
+      return next;
+    });
+    setActiveProjectId(copy.id);
+    show('Project duplicated');
+  }, [projects, show]);
+
+  // color actions
+  const addColor = useCallback((patch) => {
+    if (!activeProject) return;
+    const c = { id: uid(), hex: '#000000', purpose: 'Primary', customLabel: '', ...patch };
+    setProjects(prev => prev.map(p => p.id === activeProject.id ? { ...p, colors: [...p.colors, c] } : p));
+    show('Color added');
+  }, [activeProject, show]);
+
+  const updateColor = useCallback((colorId, patch) => {
+    if (!activeProject) return;
+    setProjects(prev => prev.map(p => p.id === activeProject.id
+      ? { ...p, colors: p.colors.map(c => c.id === colorId ? { ...c, ...patch } : c) }
+      : p
+    ));
+    show('Color updated');
+  }, [activeProject, show]);
+
+  const deleteColor = useCallback((colorId) => {
+    if (!activeProject) return;
+    setProjects(prev => prev.map(p => p.id === activeProject.id
+      ? { ...p, colors: p.colors.filter(c => c.id !== colorId) }
+      : p
+    ));
+    show('Color removed');
+  }, [activeProject, show]);
+
+  // font actions
+  const addFont = useCallback((patch) => {
+    if (!activeProject) return;
+    const f = { id: uid(), name: 'Inter', purpose: 'Heading', customLabel: '', size: 32, weight: 600, sample: '', ...patch };
+    loadGoogleFont(f.name);
+    setProjects(prev => prev.map(p => p.id === activeProject.id ? { ...p, fonts: [...p.fonts, f] } : p));
+    show('Typeface added');
+  }, [activeProject, show]);
+
+  const updateFont = useCallback((fontId, patch) => {
+    if (!activeProject) return;
+    if (patch.name) loadGoogleFont(patch.name);
+    setProjects(prev => prev.map(p => p.id === activeProject.id
+      ? { ...p, fonts: p.fonts.map(f => f.id === fontId ? { ...f, ...patch } : f) }
+      : p
+    ));
+    show('Typeface updated');
+  }, [activeProject, show]);
+
+  const deleteFont = useCallback((fontId) => {
+    if (!activeProject) return;
+    setProjects(prev => prev.map(p => p.id === activeProject.id
+      ? { ...p, fonts: p.fonts.filter(f => f.id !== fontId) }
+      : p
+    ));
+    show('Typeface removed');
+  }, [activeProject, show]);
+
+  // export/import
+  const exportJson = useCallback(() => {
+    if (!activeProject) return;
+    const payload = { version: 1, project: activeProject, exportedAt: new Date().toISOString() };
+    downloadFile(`${slugify(activeProject.name)}.style-guide.json`, JSON.stringify(payload, null, 2));
+    show('Exported JSON');
+  }, [activeProject, show]);
+
+  const exportCss = useCallback(() => {
+    if (!activeProject) return;
+    const css = projectToCss(activeProject);
+    downloadFile(`${slugify(activeProject.name)}.style-guide.css`, css, 'text/css');
+    show('Exported CSS');
+  }, [activeProject, show]);
+
+  const exportPdf = useCallback(() => {
+    if (!activeProject) return;
+    // Ensure all project fonts are loading before the print dialog opens.
+    activeProject.fonts.forEach(f => loadGoogleFont(f.name));
+    // Suggest a useful filename — most browsers pre-fill the print dialog with <document.title>.
+    const prevTitle = document.title;
+    document.title = `${slugify(activeProject.name)}.style-guide`;
+    // Wait a beat so Google Fonts have a chance to arrive before the browser rasterizes.
+    setTimeout(() => {
+      window.print();
+      // restore after the dialog closes (most browsers block synchronously, but restore anyway)
+      setTimeout(() => { document.title = prevTitle; }, 500);
+    }, 250);
+    show('Opening print dialog');
+  }, [activeProject, show]);
+
+  const importJson = useCallback((file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        const p = data.project || data;
+        if (!p || !Array.isArray(p.colors) || !Array.isArray(p.fonts)) throw new Error('Bad file');
+        const imported = {
+          id: uid(),
+          name: `${p.name || 'Imported project'}`,
+          createdAt: Date.now(),
+          colors: p.colors.map(c => ({ id: uid(), hex: c.hex, purpose: c.purpose || 'Primary', customLabel: c.customLabel || '' })),
+          fonts: p.fonts.map(f => ({
+            id: uid(),
+            name: f.name || 'Inter',
+            purpose: f.purpose || 'Body',
+            customLabel: f.customLabel || '',
+            size: Number(f.size) || 16,
+            weight: Number(f.weight) || 400,
+            sample: f.sample || '',
+          })),
+        };
+        imported.fonts.forEach(f => loadGoogleFont(f.name));
+        setProjects(prev => [imported, ...prev]);
+        setActiveProjectId(imported.id);
+        show('Project imported');
+      } catch (err) {
+        setConfirm({
+          title: 'Import failed',
+          body: 'That file doesn\u2019t look like a Style Guide Manager export. Make sure you\u2019re importing JSON exported from this app.',
+          confirmLabel: 'OK',
+          hideCancel: true,
+          onConfirm: () => {},
+        });
+      }
+    };
+    reader.readAsText(file);
+  }, [show]);
+
+  // render
+  return (
+    <>
+    <div id="app-screen" className="h-full flex">
+      <Sidebar
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onSelect={setActiveProjectId}
+        onCreate={createProject}
+        onRename={renameProject}
+        onDelete={deleteProject}
+        onDuplicate={duplicateProject}
+        theme={theme}
+        onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+      />
+
+      <main className="flex-1 h-full overflow-y-auto">
+        {activeProject ? (
+          <>
+            <ProjectHeader
+              project={activeProject}
+              onRename={(name) => renameProject(activeProject.id, name)}
+              onExportJson={exportJson}
+              onExportCss={exportCss}
+              onExportPdf={exportPdf}
+              onImportJson={importJson}
+            />
+            <ColorSection
+              colors={activeProject.colors}
+              onAdd={addColor}
+              onUpdate={updateColor}
+              onDelete={deleteColor}
+              onCopy={() => show('Hex copied')}
+            />
+            <div className="mx-8 border-t border-neutral-200 dark:border-neutral-800" />
+            <TypographySection
+              fonts={activeProject.fonts}
+              onAdd={addFont}
+              onUpdate={updateFont}
+              onDelete={deleteFont}
+            />
+          </>
+        ) : (
+          <div className="h-full flex items-center justify-center p-8">
+            <div className="max-w-md text-center">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-500 mx-auto flex items-center justify-center text-white text-2xl font-bold mb-4">S</div>
+              <h1 className="text-2xl font-semibold mb-2">Welcome to Style Guide Manager</h1>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6">
+                Create a project to start collecting colors and typography for a brand or product.
+              </p>
+              <Button variant="primary" onClick={createProject}>
+                <Icon name="plus" className="w-4 h-4" /> Create a project
+              </Button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      <Modal
+        open={!!confirm}
+        onClose={() => setConfirm(null)}
+        title={confirm?.title}
+        footer={
+          <>
+            {!confirm?.hideCancel && <Button variant="ghost" size="sm" onClick={() => setConfirm(null)}>Cancel</Button>}
+            <Button
+              variant={confirm?.danger ? 'danger' : 'primary'}
+              size="sm"
+              onClick={() => { confirm?.onConfirm?.(); setConfirm(null); }}
+            >
+              {confirm?.confirmLabel || 'Confirm'}
+            </Button>
+          </>
+        }
+      >
+        {confirm?.body}
+      </Modal>
+
+      <Toast toast={toast} />
+    </div>
+    <PrintView project={activeProject} />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
