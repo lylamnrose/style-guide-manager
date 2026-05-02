@@ -129,6 +129,69 @@ const TYPE_PURPOSES = [
 ];
 
 const DEFAULT_TYPE_SIZE = 16;
+const DEFAULT_SIZE_UNIT = 'px';
+
+// Named font weights (CSS numeric values shown alongside for designers who want both).
+const FONT_WEIGHT_OPTIONS = [
+  { value: 100, label: 'Thin' },
+  { value: 200, label: 'Extra Light' },
+  { value: 300, label: 'Light' },
+  { value: 400, label: 'Regular' },
+  { value: 500, label: 'Medium' },
+  { value: 600, label: 'Semibold' },
+  { value: 700, label: 'Bold' },
+  { value: 800, label: 'Extra Bold' },
+  { value: 900, label: 'Black' },
+];
+const FONT_WEIGHT_MAP = Object.fromEntries(FONT_WEIGHT_OPTIONS.map(o => [o.value, o.label]));
+
+function weightLabel(value) {
+  if (value == null || value === '') return 'Regular';
+  return FONT_WEIGHT_MAP[Number(value)] || `Custom (${value})`;
+}
+
+const FONT_STYLE_OPTIONS = [
+  { value: 'normal',  label: 'Regular' },
+  { value: 'italic',  label: 'Italic' },
+  { value: 'oblique', label: 'Oblique' },
+];
+const FONT_STYLE_MAP = Object.fromEntries(FONT_STYLE_OPTIONS.map(o => [o.value, o.label]));
+
+function styleLabel(value) {
+  if (!value || value === 'normal') return 'Regular';
+  return FONT_STYLE_MAP[value] || `Custom (${value})`;
+}
+
+const SIZE_UNIT_OPTIONS = [
+  { value: 'px',  label: 'px',  hint: 'Pixels — most common on the web' },
+  { value: 'pt',  label: 'pt',  hint: 'Points — print, design tools' },
+  { value: 'rem', label: 'rem', hint: 'Relative to root font size' },
+  { value: 'em',  label: 'em',  hint: 'Relative to parent font size' },
+];
+
+// Approximate visual conversion (16px ≈ 12pt ≈ 1rem at default browser settings).
+// Used only for the "≈ Npx" hint shown next to the size input — never silently mutates the user's value.
+function approxToPx(value, unit) {
+  const n = Number(value) || 0;
+  if (unit === 'pt') return +(n / 0.75).toFixed(2);
+  if (unit === 'rem' || unit === 'em') return +(n * 16).toFixed(2);
+  return n;
+}
+
+// Backfill old font records (added before style/sizeUnit existed).
+function normalizeFont(f) {
+  return {
+    id: f.id || uid(),
+    name: f.name || 'Inter',
+    purpose: f.purpose || 'Body',
+    customLabel: f.customLabel || '',
+    size: Number(f.size) || DEFAULT_TYPE_SIZE,
+    sizeUnit: f.sizeUnit || DEFAULT_SIZE_UNIT,
+    weight: Number(f.weight) || 400,
+    style: f.style || 'normal',
+    sample: f.sample || '',
+  };
+}
 
 // ---------- utilities ----------
 const uid = () =>
@@ -284,7 +347,9 @@ function loadGoogleFont(name) {
   loadedFonts.add(lk);
   const family = encodeURIComponent(key).replace(/%20/g, '+');
   const link = document.createElement('link');
-  link.href = `https://fonts.googleapis.com/css2?family=${family}:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap`;
+  // Request a wide weight range in both upright and italic so any picked weight/style works.
+  // Google Fonts gracefully serves only what each family has — extra axes are ignored.
+  link.href = `https://fonts.googleapis.com/css2?family=${family}:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap`;
   link.rel = 'stylesheet';
   link.dataset.sgFont = lk;
   document.head.appendChild(link);
@@ -319,6 +384,7 @@ const Icon = ({ name, className = 'w-4 h-4', strokeWidth = 1.8 }) => {
     case 'chevron': return <svg {...common}><polyline points="9 6 15 12 9 18"/></svg>;
     case 'contrast': return <svg {...common}><circle cx="12" cy="12" r="10"/><path d="M12 2v20" fill="currentColor" stroke="none"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" stroke="none"/></svg>;
     case 'eye': return <svg {...common}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+    case 'stack': return <svg {...common}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
     default: return null;
   }
 };
@@ -1142,7 +1208,7 @@ function ContrastTooltip({ bg, text, ratio, copied, rect }) {
 }
 
 // ---------- typography section ----------
-function TypographySection({ fonts, onAdd, onUpdate, onDelete }) {
+function TypographySection({ fonts, onAdd, onUpdate, onDelete, onDuplicate }) {
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
@@ -1184,6 +1250,7 @@ function TypographySection({ fonts, onAdd, onUpdate, onDelete }) {
             font={f}
             onUpdate={(patch) => onUpdate(f.id, patch)}
             onDelete={() => onDelete(f.id)}
+            onDuplicate={() => onDuplicate(f.id)}
           />
         ))}
       </div>
@@ -1191,10 +1258,54 @@ function TypographySection({ fonts, onAdd, onUpdate, onDelete }) {
   );
 }
 
-function FontCard({ font, onUpdate, onDelete }) {
+function FontCard({ font, onUpdate, onDelete, onDuplicate }) {
   const [editing, setEditing] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  // tryOnWeight: live-preview weight set via [/] keys. Null when not in try-on mode.
+  const [tryOnWeight, setTryOnWeight] = useState(null);
 
   useEffect(() => { loadGoogleFont(font.name); }, [font.name]);
+
+  // Cancel any pending try-on if the underlying weight changes (e.g. user saved through the form).
+  useEffect(() => { setTryOnWeight(null); }, [font.weight]);
+
+  // Keyboard shortcuts: bracket keys to step weight, Enter saves, Esc cancels.
+  // Listener is only attached while the card is hovered or already in try-on mode.
+  useEffect(() => {
+    if (!hovered && tryOnWeight == null) return;
+    if (editing) return;
+    function onKey(e) {
+      const t = e.target;
+      const tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === '[' || e.key === ']') {
+        e.preventDefault();
+        const cur = tryOnWeight != null ? tryOnWeight : Number(font.weight) || 400;
+        const knownIdx = FONT_WEIGHT_OPTIONS.findIndex(o => o.value === Number(cur));
+        let baseIdx = knownIdx;
+        if (baseIdx < 0) {
+          // Custom weight — snap to closest named weight before stepping.
+          baseIdx = FONT_WEIGHT_OPTIONS.reduce((best, o, i) =>
+            Math.abs(o.value - cur) < Math.abs(FONT_WEIGHT_OPTIONS[best].value - cur) ? i : best, 3);
+        }
+        const delta = e.key === '[' ? -1 : 1;
+        const nextIdx = Math.max(0, Math.min(FONT_WEIGHT_OPTIONS.length - 1, baseIdx + delta));
+        setTryOnWeight(FONT_WEIGHT_OPTIONS[nextIdx].value);
+      } else if (tryOnWeight != null && (e.key === 'Enter' || e.key === 'Return')) {
+        e.preventDefault();
+        onUpdate({ weight: tryOnWeight });
+        setTryOnWeight(null);
+      } else if (tryOnWeight != null && e.key === 'Escape') {
+        e.preventDefault();
+        setTryOnWeight(null);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [hovered, tryOnWeight, font.weight, editing, onUpdate]);
 
   if (editing) {
     return (
@@ -1212,32 +1323,140 @@ function FontCard({ font, onUpdate, onDelete }) {
   const label = font.purpose === 'Custom' ? (font.customLabel || 'Custom') : font.purpose;
   const sampleText = font.sample?.trim() || defaultSample(font.purpose);
   const isMono = /mono|code/i.test(font.purpose) || /mono/i.test(font.name);
+  const unit = font.sizeUnit || 'px';
+  const previewSizePx = unit === 'px' ? Math.min(Math.max(font.size, 8), 120) : approxToPx(font.size, unit);
+  const fontFamily = `"${font.name}", ${isMono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'Inter, system-ui, sans-serif'}`;
+  const displayWeight = tryOnWeight != null ? tryOnWeight : (font.weight || 400);
+  const meta = [
+    `${font.size}${unit}`,
+    weightLabel(font.weight),
+    (font.style && font.style !== 'normal') ? styleLabel(font.style) : null,
+  ].filter(Boolean).join(' · ');
 
   return (
-    <Card className="group p-5">
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div className="min-w-0">
-          <div className="text-xs font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{label}</div>
-          <div className="font-semibold text-lg truncate">{font.name}</div>
-          <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{font.size}px · weight {font.weight || 400}</div>
-        </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <button onClick={() => setEditing(true)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" title="Edit"><Icon name="edit" className="w-3.5 h-3.5" /></button>
-          <button onClick={onDelete} className="p-1.5 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40" title="Delete"><Icon name="trash" className="w-3.5 h-3.5" /></button>
-        </div>
-      </div>
+    <Card
+      className="group p-5"
+      // Use a plain div behavior; hover state drives keyboard shortcut wiring.
+    >
       <div
-        className="min-h-[3rem] leading-snug text-neutral-900 dark:text-neutral-100 break-words"
-        style={{
-          fontFamily: `"${font.name}", ${isMono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'Inter, system-ui, sans-serif'}`,
-          fontSize: `${Math.min(Math.max(font.size, 8), 120)}px`,
-          fontWeight: font.weight || 400,
-          letterSpacing: font.tracking || 'normal',
-        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
       >
-        {sampleText}
+        <div className="flex items-start justify-between gap-4 mb-3">
+          <div className="min-w-0">
+            <div className="text-xs font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{label}</div>
+            <div className="font-semibold text-lg truncate">{font.name}</div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{meta}</div>
+          </div>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <button
+              onClick={() => setCompareOpen(o => !o)}
+              className={`p-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 ${compareOpen ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30' : 'text-neutral-500'}`}
+              title="Compare all weights"
+            ><Icon name="stack" className="w-3.5 h-3.5" /></button>
+            <button onClick={() => setEditing(true)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" title="Edit"><Icon name="edit" className="w-3.5 h-3.5" /></button>
+            <button onClick={onDuplicate} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" title="Duplicate"><Icon name="duplicate" className="w-3.5 h-3.5" /></button>
+            <button onClick={onDelete} className="p-1.5 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40" title="Delete"><Icon name="trash" className="w-3.5 h-3.5" /></button>
+          </div>
+        </div>
+
+        {tryOnWeight != null && (
+          <div className="mb-3 px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between gap-3 text-xs">
+            <span className="text-indigo-900 dark:text-indigo-200">
+              Trying on <strong>{weightLabel(tryOnWeight)} ({tryOnWeight})</strong>
+              <span className="text-indigo-500/80 dark:text-indigo-300/70 ml-2">[/] step · Enter save · Esc cancel</span>
+            </span>
+            <span className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => { onUpdate({ weight: tryOnWeight }); setTryOnWeight(null); }}
+                className="text-indigo-600 dark:text-indigo-300 font-medium hover:underline"
+              >Save</button>
+              <span className="text-indigo-300 dark:text-indigo-700">·</span>
+              <button
+                onClick={() => setTryOnWeight(null)}
+                className="text-neutral-500 dark:text-neutral-400 hover:underline"
+              >Cancel</button>
+            </span>
+          </div>
+        )}
+
+        <div
+          className="min-h-[3rem] leading-snug text-neutral-900 dark:text-neutral-100 break-words"
+          style={{
+            fontFamily,
+            fontSize: `${Math.min(Math.max(previewSizePx, 8), 200)}px`,
+            fontWeight: displayWeight,
+            fontStyle: font.style || 'normal',
+            letterSpacing: font.tracking || 'normal',
+          }}
+        >
+          {sampleText}
+        </div>
+
+        {hovered && tryOnWeight == null && !compareOpen && (
+          <div className="mt-3 text-[10px] text-neutral-400 dark:text-neutral-500 tracking-wide">
+            Tip: press <kbd className="font-mono px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">[</kbd> / <kbd className="font-mono px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">]</kbd> to step weight live.
+          </div>
+        )}
+
+        {compareOpen && (
+          <WeightLadder
+            font={font}
+            sampleText={sampleText}
+            fontFamily={fontFamily}
+            previewSizePx={previewSizePx}
+            currentWeight={font.weight || 400}
+            onPick={(w) => { onUpdate({ weight: w }); setTryOnWeight(null); }}
+          />
+        )}
       </div>
     </Card>
+  );
+}
+
+function WeightLadder({ font, sampleText, fontFamily, previewSizePx, currentWeight, onPick }) {
+  // Show a smaller preview size so all 9 weights fit comfortably.
+  const ladderSize = Math.max(14, Math.min(previewSizePx, 28));
+  return (
+    <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Compare weights</div>
+        <div className="text-[10px] text-neutral-400 dark:text-neutral-500">Click a row to apply</div>
+      </div>
+      <div className="space-y-0.5">
+        {FONT_WEIGHT_OPTIONS.map(o => {
+          const active = Number(currentWeight) === o.value;
+          return (
+            <button
+              key={o.value}
+              onClick={() => onPick(o.value)}
+              className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-3 transition-colors ${
+                active
+                  ? 'bg-indigo-50 dark:bg-indigo-950/40 ring-1 ring-indigo-200 dark:ring-indigo-900/60'
+                  : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/60'
+              }`}
+            >
+              <div className="w-28 shrink-0 text-xs">
+                <div className={`font-medium ${active ? 'text-indigo-700 dark:text-indigo-300' : 'text-neutral-700 dark:text-neutral-200'}`}>{o.label}</div>
+                <div className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">{o.value}</div>
+              </div>
+              <div
+                className="flex-1 truncate"
+                style={{
+                  fontFamily,
+                  fontSize: `${ladderSize}px`,
+                  fontWeight: o.value,
+                  fontStyle: font.style || 'normal',
+                  lineHeight: 1.2,
+                }}
+              >
+                {sampleText}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1267,10 +1486,30 @@ function FontForm({ initial, onSubmit, onCancel, onDelete }) {
   const [purpose, setPurpose] = useState(initial?.purpose || 'Heading');
   const [customLabel, setCustomLabel] = useState(initial?.customLabel || '');
   const [size, setSize] = useState(initial?.size ?? 32);
-  const [weight, setWeight] = useState(initial?.weight ?? 600);
+  const [sizeUnit, setSizeUnit] = useState(initial?.sizeUnit || DEFAULT_SIZE_UNIT);
   const [sample, setSample] = useState(initial?.sample || '');
 
+  // Weight: track whether user is using a known named weight or a custom number.
+  const initialWeight = Number(initial?.weight ?? 600);
+  const initialIsKnownWeight = FONT_WEIGHT_MAP.hasOwnProperty(initialWeight);
+  const [weightMode, setWeightMode] = useState(initialIsKnownWeight ? String(initialWeight) : 'custom');
+  const [weightCustom, setWeightCustom] = useState(initialIsKnownWeight ? '' : String(initialWeight));
+
+  // Style: known names + custom escape hatch.
+  const initialStyle = initial?.style || 'normal';
+  const initialIsKnownStyle = !!FONT_STYLE_MAP[initialStyle];
+  const [styleMode, setStyleMode] = useState(initialIsKnownStyle ? initialStyle : 'custom');
+  const [styleCustom, setStyleCustom] = useState(initialIsKnownStyle ? '' : initialStyle);
+
   useEffect(() => { loadGoogleFont(name); }, [name]);
+
+  const resolvedWeight = weightMode === 'custom'
+    ? (Number(weightCustom) || 400)
+    : Number(weightMode);
+
+  const resolvedStyle = styleMode === 'custom'
+    ? (styleCustom.trim() || 'normal')
+    : styleMode;
 
   function handleSubmit(e) {
     e?.preventDefault();
@@ -1280,12 +1519,19 @@ function FontForm({ initial, onSubmit, onCancel, onDelete }) {
       purpose,
       customLabel: purpose === 'Custom' ? customLabel.trim() : '',
       size: Number(size) || DEFAULT_TYPE_SIZE,
-      weight: Number(weight) || 400,
+      sizeUnit,
+      weight: resolvedWeight,
+      style: resolvedStyle,
       sample: sample.trim(),
     });
   }
 
-  const previewFamily = `"${name.trim() || 'Inter'}", Inter, system-ui, sans-serif`;
+  const isMono = /mono|code/i.test(purpose) || /mono/i.test(name);
+  const previewFamily = `"${name.trim() || 'Inter'}", ${isMono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'Inter, system-ui, sans-serif'}`;
+  const previewSizePx = sizeUnit === 'px'
+    ? Math.min(Math.max(Number(size) || 16, 8), 200)
+    : Math.min(Math.max(approxToPx(size, sizeUnit), 8), 200);
+  const showApprox = sizeUnit !== 'px';
 
   return (
     <form onSubmit={handleSubmit} className="p-4 bg-neutral-50 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800 rounded-xl fade-in">
@@ -1307,21 +1553,61 @@ function FontForm({ initial, onSubmit, onCancel, onDelete }) {
           <Input value={customLabel} onChange={e => setCustomLabel(e.target.value)} placeholder="e.g. Pull quotes" />
         </div>
       )}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
         <div>
-          <Label>Size (px)</Label>
-          <Input type="number" min="8" max="200" value={size} onChange={e => setSize(e.target.value)} />
+          <Label>Size</Label>
+          <Input type="number" min="0" max="999" step="0.1" value={size} onChange={e => setSize(e.target.value)} />
+          {showApprox && (
+            <div className="mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">≈ {approxToPx(size, sizeUnit)}px</div>
+          )}
+        </div>
+        <div>
+          <Label>Unit</Label>
+          <Select value={sizeUnit} onChange={e => setSizeUnit(e.target.value)} title={SIZE_UNIT_OPTIONS.find(u => u.value === sizeUnit)?.hint}>
+            {SIZE_UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+          </Select>
         </div>
         <div>
           <Label>Weight</Label>
-          <Select value={weight} onChange={e => setWeight(e.target.value)}>
-            {[300, 400, 500, 600, 700].map(w => <option key={w} value={w}>{w}</option>)}
+          <Select value={weightMode} onChange={e => setWeightMode(e.target.value)}>
+            {FONT_WEIGHT_OPTIONS.map(o => (
+              <option key={o.value} value={String(o.value)}>{o.label} ({o.value})</option>
+            ))}
+            <option value="custom">Custom…</option>
           </Select>
         </div>
-        <div className="col-span-2 md:col-span-1">
-          <Label>Sample text (optional)</Label>
-          <Input value={sample} onChange={e => setSample(e.target.value)} placeholder="Auto if empty" />
+        <div>
+          <Label>Style</Label>
+          <Select value={styleMode} onChange={e => setStyleMode(e.target.value)}>
+            {FONT_STYLE_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+            <option value="custom">Custom…</option>
+          </Select>
         </div>
+      </div>
+
+      {(weightMode === 'custom' || styleMode === 'custom') && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+          {weightMode === 'custom' && (
+            <div>
+              <Label>Custom weight (1–1000)</Label>
+              <Input type="number" min="1" max="1000" value={weightCustom} onChange={e => setWeightCustom(e.target.value)} placeholder="e.g. 350" />
+            </div>
+          )}
+          {styleMode === 'custom' && (
+            <div>
+              <Label>Custom style</Label>
+              <Input value={styleCustom} onChange={e => setStyleCustom(e.target.value)} placeholder="e.g. oblique 14deg" />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3">
+        <Label>Sample text (optional)</Label>
+        <Input value={sample} onChange={e => setSample(e.target.value)} placeholder="Auto if empty" />
       </div>
 
       <div className="mt-3 p-4 rounded-lg border border-dashed border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 overflow-hidden">
@@ -1330,8 +1616,9 @@ function FontForm({ initial, onSubmit, onCancel, onDelete }) {
           className="break-words"
           style={{
             fontFamily: previewFamily,
-            fontSize: `${Math.min(Math.max(Number(size) || 16, 8), 120)}px`,
-            fontWeight: Number(weight) || 400,
+            fontSize: `${previewSizePx}px`,
+            fontWeight: resolvedWeight,
+            fontStyle: resolvedStyle,
             lineHeight: 1.2,
           }}
         >
@@ -1417,20 +1704,36 @@ function PrintView({ project }) {
           <h2 className="pv-section">Typography</h2>
           {fonts.map((f, i) => {
             const isMono = /mono|code/i.test(f.purpose) || /mono/i.test(f.name);
-            const size = Math.min(Math.max(Number(f.size) || 16, 8), 120);
+            const unit = f.sizeUnit || 'px';
+            const sizeNum = Number(f.size) || 16;
+            // Print rendering uses pt for accurate physical sizing where possible.
+            // For pt/px we pass through as-is; rem/em get approximated to pt for print.
+            const printSize = unit === 'pt'
+              ? `${sizeNum}pt`
+              : unit === 'px'
+                ? `${Math.min(Math.max(sizeNum, 6), 200)}px`
+                : `${+(approxToPx(sizeNum, unit) * 0.75).toFixed(2)}pt`;
             const sample = (f.sample && f.sample.trim()) || defaultSample(f.purpose);
+            const styleVal = f.style || 'normal';
+            const metaParts = [
+              f.name,
+              `${sizeNum}${unit}`,
+              weightLabel(f.weight),
+            ];
+            if (styleVal !== 'normal') metaParts.push(styleLabel(styleVal));
             return (
               <div key={f.id} className="pv-type">
                 <div className="row">
                   <span className="name">{fontLabel(f, i)}</span>
-                  <span>{f.name} · {size}px · {f.weight || 400}</span>
+                  <span>{metaParts.join(' · ')}</span>
                 </div>
                 <div
                   className="sample"
                   style={{
                     fontFamily: `"${f.name}", ${isMono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'Inter, sans-serif'}`,
-                    fontSize: `${size}px`,
+                    fontSize: printSize,
                     fontWeight: f.weight || 400,
+                    fontStyle: styleVal,
                   }}
                 >
                   {sample}
@@ -1507,9 +1810,13 @@ function projectToCss(project) {
   });
   project.fonts.forEach((f, i) => {
     const label = f.purpose === 'Custom' ? (f.customLabel || `custom-${i + 1}`) : f.purpose;
+    const unit = f.sizeUnit || 'px';
     lines.push(`  --font-${safe(label)}: "${f.name}", sans-serif;`);
-    lines.push(`  --font-size-${safe(label)}: ${f.size}px;`);
+    lines.push(`  --font-size-${safe(label)}: ${f.size}${unit};`);
     lines.push(`  --font-weight-${safe(label)}: ${f.weight || 400};`);
+    if (f.style && f.style !== 'normal') {
+      lines.push(`  --font-style-${safe(label)}: ${f.style};`);
+    }
   });
   lines.push('}');
   return lines.join('\n');
@@ -1532,8 +1839,13 @@ function App() {
   useEffect(() => {
     const s = loadState();
     if (s) {
-      setProjects(Array.isArray(s.projects) ? s.projects : []);
-      setActiveProjectId(s.activeProjectId || (s.projects?.[0]?.id ?? null));
+      // Migrate older font records that pre-date `style` and `sizeUnit`.
+      const migrated = (Array.isArray(s.projects) ? s.projects : []).map(p => ({
+        ...p,
+        fonts: (p.fonts || []).map(normalizeFont),
+      }));
+      setProjects(migrated);
+      setActiveProjectId(s.activeProjectId || (migrated[0]?.id ?? null));
       setTheme(s.theme === 'dark' ? 'dark' : 'light');
     } else {
       // seed an example project for first-time users
@@ -1546,8 +1858,8 @@ function App() {
           { id: uid(), hex: '#F59E0B', purpose: 'Accent', customLabel: '' },
         ],
         fonts: [
-          { id: uid(), name: 'Playfair Display', purpose: 'Display', size: 48, weight: 700, customLabel: '', sample: '' },
-          { id: uid(), name: 'Inter', purpose: 'Body', size: 16, weight: 400, customLabel: '', sample: '' },
+          normalizeFont({ name: 'Playfair Display', purpose: 'Display', size: 48, sizeUnit: 'px', weight: 700, style: 'normal' }),
+          normalizeFont({ name: 'Inter',            purpose: 'Body',    size: 16, sizeUnit: 'px', weight: 400, style: 'normal' }),
         ],
       };
       setProjects([seed]);
@@ -1653,7 +1965,7 @@ function App() {
   // font actions
   const addFont = useCallback((patch) => {
     if (!activeProject) return;
-    const f = { id: uid(), name: 'Inter', purpose: 'Heading', customLabel: '', size: 32, weight: 600, sample: '', ...patch };
+    const f = normalizeFont({ id: uid(), name: 'Inter', purpose: 'Heading', customLabel: '', size: 32, sizeUnit: DEFAULT_SIZE_UNIT, weight: 600, style: 'normal', sample: '', ...patch });
     loadGoogleFont(f.name);
     setProjects(prev => prev.map(p => p.id === activeProject.id ? { ...p, fonts: [...p.fonts, f] } : p));
     show('Typeface added');
@@ -1676,6 +1988,21 @@ function App() {
       : p
     ));
     show('Typeface removed');
+  }, [activeProject, show]);
+
+  const duplicateFont = useCallback((fontId) => {
+    if (!activeProject) return;
+    setProjects(prev => prev.map(p => {
+      if (p.id !== activeProject.id) return p;
+      const idx = p.fonts.findIndex(f => f.id === fontId);
+      if (idx < 0) return p;
+      const orig = p.fonts[idx];
+      const copy = { ...orig, id: uid() };
+      const next = [...p.fonts];
+      next.splice(idx + 1, 0, copy);
+      return { ...p, fonts: next };
+    }));
+    show('Typeface duplicated');
   }, [activeProject, show]);
 
   // export/import
@@ -1721,15 +2048,7 @@ function App() {
           name: `${p.name || 'Imported project'}`,
           createdAt: Date.now(),
           colors: p.colors.map(c => ({ id: uid(), hex: c.hex, purpose: c.purpose || 'Primary', customLabel: c.customLabel || '' })),
-          fonts: p.fonts.map(f => ({
-            id: uid(),
-            name: f.name || 'Inter',
-            purpose: f.purpose || 'Body',
-            customLabel: f.customLabel || '',
-            size: Number(f.size) || 16,
-            weight: Number(f.weight) || 400,
-            sample: f.sample || '',
-          })),
+          fonts: p.fonts.map(f => normalizeFont({ ...f, id: uid() })),
         };
         imported.fonts.forEach(f => loadGoogleFont(f.name));
         setProjects(prev => [imported, ...prev]);
@@ -1788,6 +2107,7 @@ function App() {
               onAdd={addFont}
               onUpdate={updateFont}
               onDelete={deleteFont}
+              onDuplicate={duplicateFont}
             />
           </>
         ) : (
