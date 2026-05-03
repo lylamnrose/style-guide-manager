@@ -16,7 +16,7 @@ A browser-based tool for designers to manage color palettes and typography acros
 
 ## How this was built — and what's mine vs. what's the AI's
 
-I'm a student with limited coding experience. The actual code in this project — almost all of the JavaScript, almost all of the CSS — was written by Claude (Anthropic's AI assistant), through what's sometimes called *vibe coding*: I described the product I wanted in plain English, looked at what Claude built, told it what to change, and repeated until it was good.
+I'm a student with limited coding experience. The actual code in this project, almost all of the JavaScript, almost all of the CSS, was written by Claude (Anthropic's AI assistant), through what's sometimes called *vibe coding*: I described the product I wanted in plain English, looked at what Claude built, told it what to change, and repeated until it was good.
 
 What I contributed:
 
